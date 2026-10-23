@@ -1,0 +1,279 @@
+{
+  "n01": {
+    "2026-11-09": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-06": {
+      "status": "unavailable",
+      "reason": "Appointment",
+      "note": ""
+    },
+    "2026-11-28": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n02": {
+    "2026-11-13": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-14": {
+      "status": "unavailable",
+      "reason": "Sick",
+      "note": ""
+    },
+    "2026-11-26": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n03": {
+    "2026-11-20": {
+      "status": "unavailable",
+      "reason": "Sick",
+      "note": ""
+    },
+    "2026-11-18": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-25": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n04": {
+    "2026-11-02": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-03": {
+      "status": "unavailable",
+      "reason": "Appointment",
+      "note": ""
+    },
+    "2026-11-19": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n05": {
+    "2026-11-11": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-10": {
+      "status": "unavailable",
+      "reason": "Appointment",
+      "note": ""
+    },
+    "2026-11-02": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n06": {
+    "2026-11-19": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-10": {
+      "status": "unavailable",
+      "reason": "Family emergency",
+      "note": ""
+    },
+    "2026-11-22": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n07": {
+    "2026-11-25": {
+      "status": "unavailable",
+      "reason": "Family emergency",
+      "note": ""
+    },
+    "2026-11-11": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-13": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n08": {
+    "2026-11-20": {
+      "status": "unavailable",
+      "reason": "Family emergency",
+      "note": ""
+    },
+    "2026-11-14": {
+      "status": "unavailable",
+      "reason": "Appointment",
+      "note": ""
+    },
+    "2026-11-24": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n09": {
+    "2026-11-13": {
+      "status": "unavailable",
+      "reason": "Family emergency",
+      "note": ""
+    },
+    "2026-11-19": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-04": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n10": {
+    "2026-11-07": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-26": {
+      "status": "unavailable",
+      "reason": "Sick",
+      "note": ""
+    },
+    "2026-11-03": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n11": {
+    "2026-11-07": {
+      "status": "unavailable",
+      "reason": "Family emergency",
+      "note": ""
+    },
+    "2026-11-24": {
+      "status": "unavailable",
+      "reason": "Sick",
+      "note": ""
+    },
+    "2026-11-13": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n12": {
+    "2026-11-04": {
+      "status": "unavailable",
+      "reason": "Appointment",
+      "note": "Dentist appointment"
+    },
+    "2026-11-11": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-08": {
+      "status": "unavailable",
+      "reason": "Appointment",
+      "note": ""
+    },
+    "2026-11-13": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n13": {
+    "2026-11-07": {
+      "status": "unavailable",
+      "reason": "Family emergency",
+      "note": ""
+    },
+    "2026-11-17": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-09": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n14": {
+    "2026-11-23": {
+      "status": "unavailable",
+      "reason": "Sick",
+      "note": ""
+    },
+    "2026-11-14": {
+      "status": "unavailable",
+      "reason": "Sick",
+      "note": ""
+    },
+    "2026-11-28": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n15": {
+    "2026-11-18": {
+      "status": "unavailable",
+      "reason": "Sick",
+      "note": ""
+    },
+    "2026-11-14": {
+      "status": "unavailable",
+      "reason": "Appointment",
+      "note": ""
+    },
+    "2026-11-15": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  },
+  "n16": {
+    "2026-11-28": {
+      "status": "unavailable",
+      "reason": "Sick",
+      "note": ""
+    },
+    "2026-11-20": {
+      "status": "unavailable",
+      "reason": "Other",
+      "note": ""
+    },
+    "2026-11-17": {
+      "status": "available",
+      "reason": null,
+      "note": "Happy to pick up an extra shift"
+    }
+  }
+}

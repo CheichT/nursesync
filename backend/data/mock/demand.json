@@ -1,0 +1,676 @@
+[
+  {
+    "date": "2026-11-02",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-02",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-03",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-03",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-04",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-04",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-05",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-05",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-06",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-06",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-07",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-07",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-08",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-08",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-09",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-09",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-10",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-10",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-11",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-11",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-12",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-12",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-13",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-13",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-14",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-14",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-15",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-15",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-16",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-16",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-17",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-17",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": null,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    },
+    "note": "Census forecast not entered yet"
+  },
+  {
+    "date": "2026-11-18",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-18",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-19",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-19",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-20",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-20",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-21",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-21",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-22",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-22",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-23",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 4,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    },
+    "note": "Census spike expected, confirm with manager"
+  },
+  {
+    "date": "2026-11-23",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-24",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-24",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-25",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-25",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-26",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-26",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-27",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-27",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-28",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-28",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-29",
+    "shift": "day",
+    "start": "07:00",
+    "end": "19:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  },
+  {
+    "date": "2026-11-29",
+    "shift": "night",
+    "start": "19:00",
+    "end": "07:00",
+    "unit": "Med-Surg",
+    "nurses_needed": 3,
+    "required_certifications": {
+      "Charge": 1,
+      "ACLS": 1
+    }
+  }
+]

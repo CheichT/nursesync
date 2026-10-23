@@ -1,0 +1,52 @@
+[
+  {
+    "id": "l01",
+    "employeeId": "n09",
+    "type": "pto",
+    "start": "2026-11-06",
+    "end": "2026-11-06",
+    "note": "Family event",
+    "status": "approved",
+    "createdAt": 1793000000000
+  },
+  {
+    "id": "l02",
+    "employeeId": "n11",
+    "type": "vacation",
+    "start": "2026-11-16",
+    "end": "2026-11-20",
+    "note": "Trip home",
+    "status": "approved",
+    "createdAt": 1793100000000
+  },
+  {
+    "id": "l03",
+    "employeeId": "n02",
+    "type": "pto",
+    "start": "2026-11-24",
+    "end": "2026-11-25",
+    "note": "",
+    "status": "pending",
+    "createdAt": 1793200000000
+  },
+  {
+    "id": "l04",
+    "employeeId": "n15",
+    "type": "fmla",
+    "start": "2026-11-23",
+    "end": "2026-11-29",
+    "note": "Request only, paperwork pending",
+    "status": "pending",
+    "createdAt": 1793300000000
+  },
+  {
+    "id": "l05",
+    "employeeId": "n07",
+    "type": "overtime",
+    "start": "2026-11-08",
+    "end": "2026-11-08",
+    "note": "Can cover up to 8 extra hours",
+    "status": "pending",
+    "createdAt": 1793400000000
+  }
+]
