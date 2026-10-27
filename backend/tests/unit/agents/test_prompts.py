@@ -97,7 +97,7 @@ def test_scheduler_names_every_rule_gap_reason_and_item_type():
 
 
 def test_scheduler_covers_the_hard_rules_and_the_fix_order():
-    for phrase in ("Coverage", "Certification", "Availability", "Rest", "Weekly hours", "Shifts in a row",
+    for phrase in ("Coverage", "Certification", "Availability", "Rest", "Weekly hours", "Days in a row",
                    "coverage and availability first", "never invent a nurse"):
         assert phrase in plain(SCHEDULER), phrase
     assert "Never say the draft passes" in plain(SCHEDULER)

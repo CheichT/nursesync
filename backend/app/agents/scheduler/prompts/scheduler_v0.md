@@ -42,7 +42,7 @@ A draft fails if it breaks any of these. Build a draft that follows all of them.
 3. **Availability.** Never schedule a nurse where their availability row says `available: false` (approved time off or a call-out). If a nurse has no availability row for a shift, do not schedule them there.
 4. **Rest.** At least `rules.min_rest_hours` (10) hours between the end of one shift and the start of the next, counted from the real end time.
 5. **Weekly hours.** At most `rules.max_weekly_hours` (40) hours per nurse per week, counting `hours_this_week` from the roster plus the shifts you assign.
-6. **Shifts in a row.** No more than `rules.max_consecutive_shifts` (3) shifts in a row.
+6. **Days in a row.** No more than `rules.max_consecutive_shifts` (3) days in a row.
 
 **Soft goal (never at the cost of a hard rule):** spread night and weekend shifts evenly, so the gap between the nurse with the most and the fewest is at most `rules.max_fairness_gap` (2). Soft tradeoffs do not fail a draft and are not yours to fix on fix rounds.
 
