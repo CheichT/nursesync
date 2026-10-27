@@ -14,6 +14,7 @@ Assumptions to confirm (the PRD is silent or ambiguous on these):
   * "Shifts in a row" means consecutive calendar days with a shift.
   * No availability data for a nurse and shift counts as a hard availability violation.
   * If availability rows for the same nurse, date and shift disagree, the least permissive wins.
+  * Every assignment's start and end must equal rules.shift_times for its shift, or the draft is rejected.
   * hours_this_week from the roster is added to the week of the earliest shift in the draft.
   * "Night and weekend shifts" are shifts that are a night shift or start on a Saturday or Sunday.
     The fairness result names the nurse with the most such shifts, and their first such shift.
@@ -82,6 +83,7 @@ def check_rules(
         draft = Draft.model_validate(draft.model_dump())
     except ValidationError as err:
         raise DraftRejected(f"draft could not be parsed: {str(err).splitlines()[0]}") from err
+    _require_standard_shift_times(draft, rules)
     assignments = draft.assignments
     violations: List[Violation] = []
 
@@ -187,6 +189,23 @@ def check_rules(
         violations=violations,
         soft_tradeoffs=_fairness(assignments, roster, rules),
     )
+
+
+def _require_standard_shift_times(draft: Draft, rules: RulesConfig) -> None:
+    """Reject a draft whose start and end times differ from rules.shift_times.
+
+    Hours and rest are worked out from the times on each assignment. If a draft could choose its own
+    times it could shrink its hours (a 12-hour shift written as 1 hour) and dodge the overtime rule.
+    """
+    wrong = []
+    for a in draft.assignments:
+        want = rules.shift_times[a.shift]
+        if (a.shift_start, a.shift_end) != (want.start, want.end):
+            wrong.append(f"{a.nurse_id} {a.date} {a.shift} has times {a.shift_start}-{a.shift_end}, "
+                         f"but a {a.shift} shift is {want.start}-{want.end}")
+    if wrong:
+        more = f" (and {len(wrong) - 1} more)" if len(wrong) > 1 else ""
+        raise DraftRejected(f"draft rejected: {wrong[0]}{more}")
 
 
 def _permission(row: AvailabilityRow) -> int:

@@ -44,7 +44,7 @@ from app.contract.models import (
     Unfixable,
     Violation,
 )
-from app.harness.rules import check_rules
+from app.harness.rules import DraftRejected, check_rules
 
 MAX_ROUNDS = 3
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "mock"
@@ -191,8 +191,12 @@ def run_phase1(scheduler: Scheduler, rules_checker: RulesChecker, inputs: Phase1
         draft = _get_draft(scheduler, version, inputs, previous, hints, case_id, snapshot_id, log)
         if draft is None:
             continue  # a failed round; the next round gets the same hints
+        try:
+            result = check_rules(draft, inputs.demand, inputs.availability, inputs.roster, inputs.rules)
+        except DraftRejected as err:  # for example shift times that differ from rules.shift_times
+            log.error = str(err)
+            continue  # a failed round; the draft is not kept
         previous = draft
-        result = check_rules(draft, inputs.demand, inputs.availability, inputs.roster, inputs.rules)
         log.hard_violations = len(result.violations)
         if best is None or len(result.violations) <= best[0]:
             best = (len(result.violations), draft, result)

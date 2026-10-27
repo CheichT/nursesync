@@ -109,18 +109,22 @@ def test_overnight_turnaround_fails_rest_time(staff):
     assert (v.found, v.limit) == ("0 hours of rest", "10 hours of rest")
 
 
+def _rules_with(**changes):
+    return RULES.model_copy(update=changes)
+
+
 def test_rest_of_exactly_the_minimum_passes(staff):
-    # day ends 19:00 Monday; the next shift starts 05:00 Tuesday: exactly 10 hours
-    drafted = [asg(1, MON, "day"), asg(1, TUE, "day", start="05:00", end="17:00")]
-    assert run(drafted, [], staff).passed
+    # day ends 19:00 Monday and the next day shift starts 07:00 Tuesday: exactly 12 hours of rest
+    drafted = [asg(1, MON, "day"), asg(1, TUE, "day")]
+    assert run(drafted, [], staff, rules=_rules_with(min_rest_hours=12)).passed
 
 
 def test_rest_just_under_the_minimum_fails(staff):
-    # 9 hours of rest
-    drafted = [asg(1, MON, "day"), asg(1, TUE, "day", start="04:00", end="16:00")]
-    result = run(drafted, [], staff)
+    # the same 12 hours of rest, but the minimum is 13
+    drafted = [asg(1, MON, "day"), asg(1, TUE, "day")]
+    result = run(drafted, [], staff, rules=_rules_with(min_rest_hours=13))
     assert rules_found(result) == ["rest_time"]
-    assert result.violations[0].found == "9 hours of rest"
+    assert (result.violations[0].found, result.violations[0].limit) == ("12 hours of rest", "13 hours of rest")
 
 
 def test_two_night_shifts_in_a_row_have_enough_rest(staff):
@@ -133,7 +137,8 @@ def test_day_then_night_on_the_same_date_fails_rest_time(staff):
 
 
 def test_overlapping_shifts_are_reported(staff):
-    result = run([asg(1, MON, "day"), asg(1, MON, "day", start="10:00", end="22:00")], [], staff)
+    # the same shift listed twice overlaps itself
+    result = run([asg(1, MON, "day"), asg(1, MON, "day")], [], staff)
     assert result.violations[0].found == "overlapping shifts"
 
 

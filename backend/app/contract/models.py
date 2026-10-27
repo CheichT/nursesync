@@ -15,7 +15,7 @@ Counts and limits must be in range (no negative hours, no zero weekly limit).
 
 import re
 from datetime import date as _date
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
@@ -152,8 +152,30 @@ class AvailabilityRow(Form):
         return self
 
 
+class ShiftTimes(Form):
+    """When one kind of shift starts and ends. A night shift ends the next morning (end is before start)."""
+
+    start: Clock
+    end: Clock
+
+    @model_validator(mode="after")
+    def _not_zero_length(self):
+        if self.start == self.end:
+            raise ValueError("a shift cannot start and end at the same time")
+        return self
+
+
+def _standard_shift_times() -> Dict[str, "ShiftTimes"]:
+    return {"day": ShiftTimes(start="07:00", end="19:00"), "night": ShiftTimes(start="19:00", end="07:00")}
+
+
 class RulesConfig(Form):
-    """rules.json. The limits check_rules uses."""
+    """rules.json. The limits check_rules uses.
+
+    `shift_times` is the one source of truth for how long a shift is. A draft's own start and end
+    times must match it exactly, so a draft cannot shrink its own hours. If a rules file does not
+    list it, the standard 12-hour shifts are used (day 07:00 to 19:00, night 19:00 to 07:00).
+    """
 
     min_rest_hours: int = Field(ge=0)
     max_weekly_hours: int = Field(gt=0)
@@ -161,6 +183,13 @@ class RulesConfig(Form):
     required_certifications_per_shift: List[str]
     ratio_patients_per_nurse: int = Field(ge=1)
     max_fairness_gap: int = Field(ge=0)
+    shift_times: Dict[ShiftKind, ShiftTimes] = Field(default_factory=_standard_shift_times)
+
+    @model_validator(mode="after")
+    def _both_shifts_defined(self):
+        if set(self.shift_times) != {"day", "night"}:
+            raise ValueError("shift_times must define exactly day and night")
+        return self
 
 
 class Callout(Form):

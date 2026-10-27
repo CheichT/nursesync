@@ -6,5 +6,15 @@
     "ACLS"
   ],
   "ratio_patients_per_nurse": 5,
-  "max_fairness_gap": 2
+  "max_fairness_gap": 2,
+  "shift_times": {
+    "day": {
+      "start": "07:00",
+      "end": "19:00"
+    },
+    "night": {
+      "start": "19:00",
+      "end": "07:00"
+    }
+  }
 }
