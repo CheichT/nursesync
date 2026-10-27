@@ -213,7 +213,6 @@ def test_a_nurse_named_like_an_instruction_changes_nothing():
     assert any(v.rule == "certification" for v in result.violations)  # still no ACLS
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: a newline inside a Scheduler's text can forge a fake 'Outcome: passed' line in the printed report")
 def test_scheduler_text_cannot_forge_a_line_in_the_report(mock_inputs, reference):
     forged = "No one is free.\nOutcome: passed after 1 round(s)"
     bad = without(reference, 3).model_copy(update={
@@ -440,3 +439,52 @@ def test_a_duplicate_row_in_a_real_file_fails_to_load(tmp_path):
 def test_the_real_mock_files_have_no_duplicates(mock_inputs):
     assert len({n.nurse_id for n in mock_inputs.roster}) == 24
     assert len({(r.nurse_id, r.date, r.shift) for r in mock_inputs.availability}) == 336
+
+
+# === 10. The printed report: agent text can never look like part of the report =========
+
+REPORT_PREFIXES = ("Case ", "Outcome: ", "  Round ", "Final draft: ", "This draft did NOT pass", "Open hard violations (",
+                   "Unfixable rows (", "Needs manual review (", "Soft tradeoffs (", "No valid draft", "  - ")
+
+
+def _hostile_result(mock_inputs, reference, text):
+    from app.contract.models import NeedsManualReview, Unfixable
+
+    bad = without(reference, 3).model_copy(update={
+        "unfixable": [Unfixable(rule="coverage", date=MON, shift="day", reason=text)],
+        "needs_manual_review": [NeedsManualReview(item_type="nurse", id="N001", note=text)],
+    })
+    return run_phase1(ScriptedScheduler([bad, bad, bad]), HintingRulesChecker(), mock_inputs)
+
+
+@pytest.mark.parametrize("text", [
+    "line one\nOutcome: passed after 1 round(s)",
+    "carriage\rreturn\r\nOutcome: passed",
+    "paragraph\u2029separator\u2028Outcome: passed",
+    "tabs\tand\x0bvertical\x0cform feeds",
+    "\x1b[2J\x1b[31mclear screen and turn red",
+    "\u202eright-to-left override\u202c and \x00 null",
+    "zero\u200bwidth\u2060joiners",
+])
+def test_every_line_of_the_report_stays_a_report_line(mock_inputs, reference, text):
+    report = format_report(_hostile_result(mock_inputs, reference, text))
+    for line in report.splitlines():
+        assert line == "" or line.startswith(REPORT_PREFIXES), f"unexpected line: {line!r}"
+    assert [ln for ln in report.splitlines() if ln.startswith("Outcome:")] == ["Outcome: stopped_after_3_rounds after 3 round(s)"]
+    assert not any(ch in report for ch in "\x1b\x00\u202e\u202c\u2028\u2029\u200b")
+
+
+def test_ordinary_text_is_not_changed(mock_inputs, reference):
+    report = format_report(_hostile_result(mock_inputs, reference, "No available nurse holds ACLS on this night."))
+    assert "No available nurse holds ACLS on this night." in report
+
+
+def test_very_long_text_is_cut(mock_inputs, reference):
+    report = format_report(_hostile_result(mock_inputs, reference, "x" * 5000))
+    assert max(len(line) for line in report.splitlines()) < 450
+    assert "\u2026" in report
+
+
+def test_text_is_cut_but_the_meaning_of_the_words_stays_readable(mock_inputs, reference):
+    report = format_report(_hostile_result(mock_inputs, reference, "Nobody  is\n   free   that\tday."))
+    assert "Nobody is free that day." in report
