@@ -146,7 +146,6 @@ def test_a_draft_cannot_shrink_its_own_hours():
 # === 3. Hostile or contradictory input files ==========================================
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: a second availability row for the same nurse and shift silently overrides approved time off (last row wins)")
 def test_a_later_row_cannot_cancel_approved_time_off():
     nurses = [nurse(1)]
     rows = avail(nurses, off={("N001", MON, "day")})
@@ -155,7 +154,6 @@ def test_a_later_row_cannot_cancel_approved_time_off():
     assert any(v.rule == "availability" for v in result.violations)
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: two roster rows with the same nurse_id are accepted, so a later row can grant an ACLS certification")
 def test_duplicate_nurse_ids_in_the_roster_are_rejected():
     rows = [nurse(1, acls=False), nurse(1, acls=True)]
     with pytest.raises(ValidationError):
@@ -382,3 +380,63 @@ def test_a_rules_checker_cannot_shorten_the_violation_list_the_harness_keeps(moc
     scheduler = ScriptedScheduler([without(reference, 2), reference])
     run_phase1(scheduler, Shredder(), mock_inputs)
     assert len(scheduler.calls[1]["violations"]) > 0  # the code's list still reached the Scheduler
+
+
+# === 9. Duplicate and conflicting rows =================================================
+
+
+def _row(available, status="ok", reason=None):
+    return AvailabilityRow(nurse_id="N001", date=MON, shift="day", available=available,
+                           reason=reason or ("none" if available else "approved_time_off"), status=status,
+                           note="" if status == "ok" else "no data")
+
+
+@pytest.mark.parametrize("order", ["off_first", "off_last"])
+def test_conflicting_availability_rows_never_depend_on_their_order(order):
+    nurses = [nurse(1)]
+    rows = [_row(False), _row(True)] if order == "off_first" else [_row(True), _row(False)]
+    result = check_rules(draft([asg(1, MON)]), [demand(MON, "day", 1)], rows, nurses, RULES)
+    assert any(v.rule == "availability" and "approved time off" in v.found for v in result.violations)
+
+
+def test_a_missing_row_beats_an_available_row():
+    nurses = [nurse(1)]
+    rows = [_row(True), AvailabilityRow(nurse_id="N001", date=MON, shift="day", status="missing", note="no data")]
+    result = check_rules(draft([asg(1, MON)]), [demand(MON, "day", 1)], rows, nurses, RULES)
+    assert any(v.found == "no availability data" for v in result.violations)
+
+
+def test_repeated_identical_availability_rows_are_still_fine_for_the_checker():
+    nurses = [nurse(1)]
+    rows = [_row(True), _row(True)]
+    assert check_rules(draft([asg(1, MON)]), [demand(MON, "day", 1)], rows, nurses, RULES).passed
+
+
+def test_duplicate_availability_rows_are_rejected_when_loading():
+    rows = avail([nurse(1)]) + [_row(True)]
+    with pytest.raises(ValidationError) as err:
+        Phase1Inputs(demand=[], availability=rows, roster=[nurse(1)], rules=RULES)
+    assert "N001 2026-11-02 day" in str(err.value)
+
+
+def test_duplicate_roster_ids_name_the_nurse_in_the_error():
+    with pytest.raises(ValidationError) as err:
+        Phase1Inputs(demand=[], availability=[], roster=[nurse(1), nurse(2), nurse(1)], rules=RULES)
+    assert "N001" in str(err.value) and "N002" not in str(err.value)
+
+
+def test_a_duplicate_row_in_a_real_file_fails_to_load(tmp_path):
+    import shutil
+
+    for name in ("demand.json", "availability.json", "roster.json", "rules.json"):
+        shutil.copy(MOCK / name, tmp_path / name)
+    roster = json.loads((tmp_path / "roster.json").read_text())
+    roster.append(dict(roster[0], certifications=["BLS", "ACLS"]))  # same id again
+    (tmp_path / "roster.json").write_text(json.dumps(roster))
+    with pytest.raises(ValidationError):
+        load_inputs(tmp_path)
+
+
+def test_the_real_mock_files_have_no_duplicates(mock_inputs):
+    assert len({n.nurse_id for n in mock_inputs.roster}) == 24
+    assert len({(r.nurse_id, r.date, r.shift) for r in mock_inputs.availability}) == 336

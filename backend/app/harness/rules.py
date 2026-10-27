@@ -13,6 +13,7 @@ Assumptions to confirm (the PRD is silent or ambiguous on these):
   * A shift with MORE nurses than the demand row asks for is not a violation. Only fewer is.
   * "Shifts in a row" means consecutive calendar days with a shift.
   * No availability data for a nurse and shift counts as a hard availability violation.
+  * If availability rows for the same nurse, date and shift disagree, the least permissive wins.
   * hours_this_week from the roster is added to the week of the earliest shift in the draft.
   * "Night and weekend shifts" are shifts that are a night shift or start on a Saturday or Sunday.
     The fairness result names the nurse with the most such shifts, and their first such shift.
@@ -163,7 +164,7 @@ def check_rules(
             ))
 
     # --- availability ------------------------------------------------------------
-    avail = {(r.nurse_id, r.date, r.shift): r for r in availability}
+    avail = _most_cautious_rows(availability)
     for a in assignments:
         r = avail.get((a.nurse_id, a.date, a.shift))
         if r is None or r.status == "missing" or r.available is None:
@@ -186,6 +187,26 @@ def check_rules(
         violations=violations,
         soft_tradeoffs=_fairness(assignments, roster, rules),
     )
+
+
+def _permission(row: AvailabilityRow) -> int:
+    """0 = unavailable, 1 = no usable data, 2 = available. Lower is more cautious."""
+    if row.status == "missing" or row.available is None:
+        return 1
+    return 2 if row.available else 0
+
+
+def _most_cautious_rows(rows: List[AvailabilityRow]) -> Dict[Tuple[str, str, str], AvailabilityRow]:
+    """One row per (nurse, date, shift). If rows disagree, the least permissive wins, in any order.
+
+    A later "available" row can therefore never cancel approved time off.
+    """
+    chosen: Dict[Tuple[str, str, str], AvailabilityRow] = {}
+    for r in rows:
+        key = (r.nurse_id, r.date, r.shift)
+        if key not in chosen or _permission(r) < _permission(chosen[key]):
+            chosen[key] = r
+    return chosen
 
 
 def _fairness(assignments: List[Assignment], roster: List[Nurse], rules: RulesConfig) -> List[SoftTradeoff]:
