@@ -24,7 +24,9 @@ stand_ins.py for tests and demos. The real AI-backed agents come later, once the
 
 import argparse
 import json
+import shutil
 import sys
+from tempfile import TemporaryDirectory
 import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Protocol, Tuple
@@ -48,6 +50,7 @@ from app.harness.rules import DraftRejected, check_rules
 
 MAX_ROUNDS = 3
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "mock"
+SCENARIOS = Path(__file__).resolve().parents[2] / "data" / "scenarios"
 
 
 class Phase1Inputs(BaseModel):
@@ -85,6 +88,25 @@ def load_inputs(data_dir: Path = DEFAULT_DATA) -> Phase1Inputs:
         roster=[Nurse(**r) for r in read("roster.json")],
         rules=RulesConfig(**read("rules.json")),
     )
+
+
+def load_scenario(name: str) -> Tuple[Phase1Inputs, Optional[Dict[str, Any]]]:
+    """Load an eval scenario: the base mock week, with any file in data/scenarios/<name>/ replacing
+    the mock file of the same name. Returns the inputs and the planted draft (a plain dict) if the
+    scenario has one. The planted draft is never validated here: check_rules judges it."""
+    folder = SCENARIOS / name
+    if not folder.is_dir():
+        raise FileNotFoundError(f"no scenario folder: {folder}")
+    with TemporaryDirectory() as tmp:
+        merged = Path(tmp)
+        for f in DEFAULT_DATA.glob("*.json"):
+            shutil.copy(f, merged / f.name)
+        for f in folder.glob("*.json"):
+            if f.name != "planted_draft.json":
+                shutil.copy(f, merged / f.name)
+        inputs = load_inputs(merged)
+    planted = folder / "planted_draft.json"
+    return inputs, (json.loads(planted.read_text()) if planted.exists() else None)
 
 
 class Scheduler(Protocol):
