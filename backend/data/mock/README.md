@@ -2,49 +2,30 @@
 
 Made-up data only. No real patient or staff information. All names are invented.
 
-One unit (Med-Surg), 16 nurses, 4 weeks (2026-11-02 to 2026-11-29).
+One unit (7W), 24 nurses, one week (Monday 2026-11-02 to Sunday 2026-11-08). The files follow the PRD's "Phase 1 input files" and "Draft format" exactly.
 
 ## Files
 
 | File | What it holds |
 | --- | --- |
-| `roster.json` | One manager (`admin-1`) and 16 nurses. Nurses have `unit`, `certifications`, `employment` and `max_weekly_hours`. |
-| `availability.json` | Per nurse, per date: `status` (`available` or `unavailable`), `reason`, `note`. Same shape as Shift Board. |
-| `shifts.json` | The already-scheduled shifts for **week 1 only** (2026-11-02 to 2026-11-08). Same shape as Shift Board. |
-| `leave.json` | Leave requests: `vacation`, `pto`, `fmla`, `overtime`. Statuses `approved` or `pending`. |
-| `demand.json` | Nurses needed per date and shift for all 4 weeks, with required certifications. |
-| `callouts.json` | Call-outs reported against scheduled shifts. |
+| `roster.json` | 24 nurses: `nurse_id`, `name`, `unit`, `certifications`, `hours_this_week`. Eight nurses (N001 to N008) hold ACLS. |
+| `demand.json` | 14 rows (7 days x 2 shifts): `patient_count` and `nurses_needed` (patients divided by 5, rounded up). Always 4 or 5 nurses. |
+| `availability.json` | 336 rows, one per nurse, date and shift: `available`, `reason` (`none` or `approved_time_off`), `status`, `note`. |
+| `rules.json` | The limits `check_rules` uses: 10 hours rest, 40 hours a week, 3 shifts in a row, ACLS on every shift, 1 nurse per 5 patients, fairness gap 2. |
+| `reference_draft.json` | A correct draft in the PRD's Draft format. It has 0 hard-rule violations and a fairness gap of 2. |
+| `leave.json` | Leave requests in the Shift Board shape (`employeeId`). Not a PRD format. Only **approved** requests appear as time off in `availability.json`. Pending ones (an FMLA request and an overtime request) are information only. |
 
 ## Facts about the data
 
-- Shifts are 12 hours: `day` 07:00 to 19:00 and `night` 19:00 to 07:00 (ends the next morning).
-- Roster: 12 full-time nurses (40 hour limit) and 4 part-time nurses (24 hour limit). All 16 have BLS, 9 have ACLS, and 6 have Charge (all Charge nurses also have ACLS).
-- Every shift needs 3 nurses, including at least 1 Charge and 1 ACLS.
-- `demand.json` has two special rows: 2026-11-17 night has `nurses_needed: null` (missing), and 2026-11-23 day needs 4 with a note (needs review). Handoff status fields (`ok`, `needs_review`, `missing`) are written by orchestrator code, not stored here.
+- Two 12-hour shifts: `day` 07:00 to 19:00 and `night` 19:00 to 07:00 (ends the next morning).
+- At the 40-hour limit each nurse works at most 3 shifts a week. The reference draft has 62 assignments: 10 nurses work 2 shifts and 14 work 3.
+- Approved time off: N003 (Nov 4), N006 (Nov 5), N009 (Nov 6), N015 (Nov 2 to 3), N020 (Nov 7 to 8). It shows as `available: false` with `reason: approved_time_off`.
+- The base case has no call-outs, no missing data and no conflicts, so it matches PRD eval case 1.
 
-## Rule limits assumed when planting problems
+## Not here yet
 
-These are assumptions. The real limits belong in `check_rules`, so change them there and re-check this file.
+Call-outs, missing or malformed rows, and the demand outlier belong to Phase 2 and 3 evals. They will be added as separate scenario files when those phases start. Drafts with planted violations for `check_rules` tests will live with those tests.
 
-- Rest between shifts: at least 10 hours.
-- Consecutive days worked: at most 3.
-- Weekly hours: at most the nurse's `max_weekly_hours`.
+## How it was made
 
-## Planted problems in week 1 (for tests and evals)
-
-Every other shift in `shifts.json` follows the rules. There are exactly 8 problems:
-
-| # | Rule | Where | What is wrong |
-| --- | --- | --- | --- |
-| 1 | `rest_time` | n06, night 2026-11-06 then day 2026-11-07 | 0 hours of rest between shifts |
-| 2 | `consecutive_shifts` | n04, 2026-11-05 to 2026-11-08 | 4 days in a row (limit 3) |
-| 3 | `weekly_hours` | n04 | 48 hours (limit 40) |
-| 4 | `weekly_hours` | n16 | 36 hours (limit 24) |
-| 5 | `coverage` | night 2026-11-05 | 2 nurses (n14, n15), 3 needed |
-| 6 | `certification` | night 2026-11-05 | No Charge nurse |
-| 7 | `availability` | n12, day 2026-11-04 | Scheduled on a day marked unavailable (shift status `conflict`) |
-| 8 | `availability` | n09, night 2026-11-06 | Scheduled during approved PTO (`l01`) |
-
-## Call-out
-
-`c01`: n08 reported sick for the night shift on 2026-11-03 (`s012`).
+A script built a feasible week, then a second, independent script checked the saved files against every hard rule in the PRD. Changing a rule limit means regenerating and re-checking this data.
