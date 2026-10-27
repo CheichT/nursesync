@@ -28,7 +28,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Protocol, Tuple
 
-from pydantic import BaseModel, ValidationError
+from collections import Counter
+
+from pydantic import BaseModel, ValidationError, model_validator
 
 from app.contract.models import (
     AvailabilityRow,
@@ -48,12 +50,26 @@ DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "mock"
 
 
 class Phase1Inputs(BaseModel):
-    """The four input files, parsed."""
+    """The four input files, parsed. A file with duplicate rows is rejected, never quietly merged."""
 
     demand: List[DemandRow]
     availability: List[AvailabilityRow]
     roster: List[Nurse]
     rules: RulesConfig
+
+    @model_validator(mode="after")
+    def _no_duplicate_rows(self):
+        ids = Counter(n.nurse_id for n in self.roster)
+        repeated = sorted(i for i, c in ids.items() if c > 1)
+        if repeated:
+            raise ValueError(f"roster has duplicate nurse_id values: {repeated}")
+        keys = Counter((r.nurse_id, r.date, r.shift) for r in self.availability)
+        repeated_rows = sorted(k for k, c in keys.items() if c > 1)
+        if repeated_rows:
+            shown = ", ".join(f"{n} {d} {sh}" for n, d, sh in repeated_rows[:5])
+            more = f" (and {len(repeated_rows) - 5} more)" if len(repeated_rows) > 5 else ""
+            raise ValueError(f"availability has more than one row for the same nurse, date and shift: {shown}{more}")
+        return self
 
 
 def load_inputs(data_dir: Path = DEFAULT_DATA) -> Phase1Inputs:
