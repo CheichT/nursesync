@@ -6,17 +6,15 @@ Anything the model returns is only a draft: the harness validates it and `check_
 """
 
 import json
-import re
 from pathlib import Path
 from typing import Any, List, Optional
 
-from app.config import MODEL, load_api_key
+from app.agents.common import MAX_TOKENS, make_client, parse_reply, reply_text, send
+from app.config import MODEL
 from app.contract.models import Draft, Violation
 from app.harness.phase1 import Phase1Inputs
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "scheduler_v0.md"
-MAX_TOKENS = 32000  # the model thinks before it answers, and that counts toward the limit
-_FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 
 
 def build_message(case_id: str, snapshot_id: str, version: int, inputs: Phase1Inputs,
@@ -37,24 +35,11 @@ def build_message(case_id: str, snapshot_id: str, version: int, inputs: Phase1In
     return json.dumps(payload, separators=(",", ":"))
 
 
-def parse_reply(text: str) -> Optional[Any]:
-    """The reply as a JSON value, or None if it is not valid JSON (the harness then counts a failed round)."""
-    text = text.strip()
-    fenced = _FENCE.match(text)
-    if fenced:
-        text = fenced.group(1)
-    try:
-        return json.loads(text)
-    except ValueError:
-        return None
-
-
 class AnthropicScheduler:
     def __init__(self, client: Any = None, case_id: str = "case-1", snapshot_id: str = "phase1-snapshot",
                  model: str = MODEL):
         if client is None:
-            import anthropic
-            client = anthropic.Anthropic(api_key=load_api_key())
+            client = make_client()
         self.client = client
         self.case_id = case_id
         self.snapshot_id = snapshot_id
@@ -66,11 +51,12 @@ class AnthropicScheduler:
     def build(self, version: int, inputs: Phase1Inputs, previous_draft: Optional[Draft],
               violations: List[Violation]) -> Any:
         message = build_message(self.case_id, self.snapshot_id, version, inputs, previous_draft, violations)
-        reply = self.client.messages.create(
+        reply = send(
+            self.client,
             model=self.model, max_tokens=MAX_TOKENS, system=self.system_prompt,
             messages=[{"role": "user", "content": message}],
         )
-        text = "".join(block.text for block in reply.content if getattr(block, "type", "") == "text")
+        text = reply_text(reply)
         self.last_text = text
         self.calls.append({"version": version, "stop_reason": getattr(reply, "stop_reason", None),
                            "output_tokens": getattr(getattr(reply, "usage", None), "output_tokens", None)})
