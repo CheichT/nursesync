@@ -7,11 +7,65 @@ Source of truth: the PRD (Google Doc), sections 3b "Handoff format", "Phase 1 in
 "Draft format" and "Violation format". If this file and the PRD disagree, the PRD wins.
 Field names match the PRD exactly (snake_case). Only the Phase 1 forms are here.
 The case record and the snapshot are Phase 2, so they are not here yet.
+
+Dates and times are adjusted automatically when the meaning is unambiguous ("7:00" becomes "07:00",
+"7pm" becomes "19:00", "2026-11-2" becomes "2026-11-02") and rejected otherwise ("25:99", "11/02/2026").
+Counts and limits must be in range (no negative hours, no zero weekly limit).
 """
 
-from typing import List, Literal, Optional
+import re
+from datetime import date as _date
+from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
+
+_TIME_24H = re.compile(r"(\d{1,2}):(\d{2})(?::00)?")
+_TIME_12H = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)")
+_DATE_YMD = re.compile(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})")
+
+
+def _adjust_time(value):
+    """Return HH:MM, adjusting only when the meaning is unambiguous. Anything else is an error.
+
+    Adjusted: "7:00" -> "07:00", " 07:00 " -> "07:00", "07:00:00" -> "07:00",
+    "7am" -> "07:00", "7:30 PM" -> "19:30", "12:00 AM" -> "00:00". Rejected: "25:99", "24:00",
+    "07:00:30", "7", "".
+    """
+    if not isinstance(value, str):
+        raise ValueError("time must be text like 07:00")
+    text = value.strip().lower()
+    m = _TIME_12H.fullmatch(text)
+    if m:
+        hour, minute, half = int(m.group(1)), int(m.group(2) or 0), m.group(3)
+        if not 1 <= hour <= 12 or not 0 <= minute <= 59:
+            raise ValueError(f"not a valid time: {value!r}")
+        hour = (hour % 12) + (12 if half == "pm" else 0)
+        return f"{hour:02d}:{minute:02d}"
+    m = _TIME_24H.fullmatch(text)
+    if m and int(m.group(1)) <= 23 and int(m.group(2)) <= 59:
+        return f"{int(m.group(1)):02d}:{int(m.group(2)):02d}"
+    raise ValueError(f"not a valid time: {value!r} (use HH:MM, for example 07:00)")
+
+
+def _adjust_date(value):
+    """Return YYYY-MM-DD, adjusting only when the meaning is unambiguous. Anything else is an error.
+
+    Adjusted: "2026-11-2" -> "2026-11-02", "2026/11/02" -> "2026-11-02".
+    Rejected: "11/02/2026" (month first or day first? we do not guess), "2026-02-30", "tomorrow", "".
+    """
+    if not isinstance(value, str):
+        raise ValueError("date must be text like 2026-11-02")
+    m = _DATE_YMD.fullmatch(value.strip())
+    if m:
+        try:
+            return _date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+        except ValueError:
+            pass
+    raise ValueError(f"not a valid date: {value!r} (use YYYY-MM-DD, for example 2026-11-02)")
+
+
+Day = Annotated[str, BeforeValidator(_adjust_date)]  # YYYY-MM-DD
+Clock = Annotated[str, BeforeValidator(_adjust_time)]  # HH:MM
 
 ShiftKind = Literal["day", "night"]
 RowStatus = Literal["ok", "needs_review", "missing"]
@@ -45,7 +99,7 @@ class Nurse(Form):
     name: str
     unit: str
     certifications: List[str]
-    hours_this_week: int
+    hours_this_week: int = Field(ge=0)
 
 
 class DemandRow(Form):
@@ -56,7 +110,7 @@ class DemandRow(Form):
     """
 
     unit: str
-    date: str  # YYYY-MM-DD
+    date: Day
     shift: ShiftKind
     patient_count: Optional[int] = Field(default=None, ge=0)
     nurses_needed: Optional[int] = Field(default=None, ge=0)
@@ -80,7 +134,7 @@ class AvailabilityRow(Form):
     """
 
     nurse_id: str
-    date: str  # YYYY-MM-DD
+    date: Day
     shift: ShiftKind
     available: Optional[bool] = None
     reason: Optional[AvailabilityReason] = None
@@ -101,19 +155,19 @@ class AvailabilityRow(Form):
 class RulesConfig(Form):
     """rules.json. The limits check_rules uses."""
 
-    min_rest_hours: int
-    max_weekly_hours: int
-    max_consecutive_shifts: int
+    min_rest_hours: int = Field(ge=0)
+    max_weekly_hours: int = Field(gt=0)
+    max_consecutive_shifts: int = Field(ge=1)
     required_certifications_per_shift: List[str]
-    ratio_patients_per_nurse: int
-    max_fairness_gap: int
+    ratio_patients_per_nurse: int = Field(ge=1)
+    max_fairness_gap: int = Field(ge=0)
 
 
 class Callout(Form):
     """One call-out. Phase 3 reads these (get_callouts)."""
 
     nurse_id: str
-    date: str  # YYYY-MM-DD
+    date: Day
     shift: ShiftKind
     reported_at: str  # ISO date and time
 
@@ -125,16 +179,16 @@ class Assignment(Form):
     """One nurse on one shift. A night shift ends the next morning (shift_end < shift_start)."""
 
     unit: str
-    date: str  # YYYY-MM-DD, the day the shift starts
+    date: Day  # the day the shift starts
     shift: ShiftKind
     nurse_id: str
-    shift_start: str  # HH:MM
-    shift_end: str  # HH:MM
+    shift_start: Clock
+    shift_end: Clock
 
 
 class OpenGap(Form):
     unit: str
-    date: str  # YYYY-MM-DD
+    date: Day
     shift: ShiftKind
     nurses_needed: int
     nurses_assigned: int
@@ -152,7 +206,7 @@ class Unfixable(Form):
 
     rule: RuleName
     nurse_id: str = ""
-    date: str  # YYYY-MM-DD
+    date: Day
     shift: ShiftKind
     reason: str  # one plain sentence
 
@@ -160,7 +214,7 @@ class Unfixable(Form):
 class Suggestion(Form):
     """Call-outs only: one replacement nurse for one shift."""
 
-    date: str  # YYYY-MM-DD
+    date: Day
     shift: ShiftKind
     nurse_id: str  # the replacement
     reason: str  # one plain sentence
@@ -193,7 +247,7 @@ class Violation(Form):
     rule: RuleName
     severity: Severity
     nurse_id: str = ""
-    date: str  # YYYY-MM-DD
+    date: Day
     shift: ShiftKind
     found: str
     limit: str
@@ -205,7 +259,7 @@ class SoftTradeoff(Form):
 
     rule: RuleName
     nurse_id: str = ""
-    date: str  # YYYY-MM-DD
+    date: Day
     shift: ShiftKind
     note: str
 

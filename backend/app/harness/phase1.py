@@ -114,7 +114,8 @@ def _get_draft(scheduler: Scheduler, version: int, inputs: Phase1Inputs, previou
         log.error = "the Scheduler returned no draft"
         return None
     try:
-        draft = raw if isinstance(raw, Draft) else Draft(**raw)
+        # always re-validate, even a Draft object: it may have been edited after it was built
+        draft = Draft.model_validate(raw.model_dump() if isinstance(raw, Draft) else raw)
     except (ValidationError, TypeError) as err:
         log.error = f"draft could not be parsed: {str(err).splitlines()[0]}"
         return None
