@@ -72,7 +72,15 @@ def check_rules(
     roster: List[Nurse],
     rules: RulesConfig,
 ) -> CheckRulesResult:
-    """Check a draft against the hard rules. Returns the result, echoing case_id and version."""
+    """Check a draft against the hard rules. Returns the result, echoing case_id and version.
+
+    The draft is validated again first, so one that was edited after it was built (and so skipped
+    validation) cannot reach the rules. An invalid draft raises DraftRejected.
+    """
+    try:
+        draft = Draft.model_validate(draft.model_dump())
+    except ValidationError as err:
+        raise DraftRejected(f"draft could not be parsed: {str(err).splitlines()[0]}") from err
     assignments = draft.assignments
     violations: List[Violation] = []
 

@@ -79,8 +79,7 @@ def reference():
 # === 1. Bad times and dates must be rejected, not crash the checker ===================
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: check_rules crashes with ValueError on a bad time instead of rejecting the draft")
-@pytest.mark.parametrize("bad_time", ["25:99", "7am", "", "07:00:00:00"])
+@pytest.mark.parametrize("bad_time", ["25:99", "24:00", "13:00 pm", "07:00:30", "", "07:00:00:00", "7", "noon"])
 def test_a_bad_time_string_is_rejected_cleanly(bad_time):
     raw = {"case_id": "case-1", "snapshot_id": "phase1-snapshot", "version": 1,
            "assignments": [{"unit": "7W", "date": MON, "shift": "day", "nurse_id": "N001",
@@ -89,8 +88,7 @@ def test_a_bad_time_string_is_rejected_cleanly(bad_time):
         check_rules_from_dicts(raw, [demand(MON, "day", 1)], avail([nurse(1)]), [nurse(1)], RULES)
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: check_rules crashes with ValueError on a bad date instead of rejecting the draft")
-@pytest.mark.parametrize("bad_date", ["2026-13-45", "tomorrow", "11/02/2026", ""])
+@pytest.mark.parametrize("bad_date", ["2026-13-45", "2026-02-30", "tomorrow", "11/02/2026", "02/11/2026", ""])
 def test_a_bad_date_string_is_rejected_cleanly(bad_date):
     raw = {"case_id": "case-1", "snapshot_id": "phase1-snapshot", "version": 1,
            "assignments": [{"unit": "7W", "date": bad_date, "shift": "day", "nurse_id": "N001",
@@ -99,7 +97,6 @@ def test_a_bad_date_string_is_rejected_cleanly(bad_date):
         check_rules_from_dicts(raw, [demand(MON, "day", 1)], avail([nurse(1)]), [nurse(1)], RULES)
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: a draft with a bad time crashes the whole harness run instead of being a failed round")
 def test_the_harness_survives_a_draft_with_a_bad_time(mock_inputs, reference):
     bad = reference.model_copy(update={"assignments": [
         reference.assignments[0].model_copy(update={"shift_start": "25:99"})] + reference.assignments[1:]})
@@ -165,15 +162,14 @@ def test_duplicate_nurse_ids_in_the_roster_are_rejected():
         Phase1Inputs(demand=[], availability=[], roster=rows, rules=RULES)
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: negative hours_this_week is accepted and hides real overtime")
 def test_negative_hours_this_week_is_rejected():
     with pytest.raises(ValidationError):
         Nurse(nurse_id="N001", name="Nurse", unit="7W", certifications=["ACLS"], hours_this_week=-100)
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: rules.json accepts nonsense limits (negative rest hours, zero weekly hours)")
-@pytest.mark.parametrize("field,value", [("min_rest_hours", -5), ("max_weekly_hours", 0),
-                                         ("max_consecutive_shifts", -1), ("ratio_patients_per_nurse", 0)])
+@pytest.mark.parametrize("field,value", [("min_rest_hours", -5), ("max_weekly_hours", 0), ("max_weekly_hours", -40),
+                                         ("max_consecutive_shifts", 0), ("ratio_patients_per_nurse", 0),
+                                         ("max_fairness_gap", -1)])
 def test_nonsense_rule_limits_are_rejected(field, value):
     limits = RULES.model_dump()
     limits[field] = value
@@ -251,8 +247,14 @@ def test_a_scheduler_cannot_edit_the_availability_it_is_checked_against(mock_inp
 
 
 @pytest.mark.xfail(strict=True, reason="FINDING: the Rules Checker receives the live draft, so it can edit it after the check and the final draft no longer matches what was checked")
+@pytest.mark.xfail(strict=True, reason="FINDING: the Rules Checker receives the live draft, so it can edit it after the check and the final draft no longer matches what was checked")
 def test_the_final_draft_is_exactly_what_was_checked(mock_inputs, reference):
-    scheduler = ScriptedScheduler([without(reference, 3)] * 3)
+    from app.harness.stand_ins import without_shifts
+
+    # Round 1 is the best draft (1 emptied shift). Rounds 2 and 3 are worse, so round 1 is handed to the manager.
+    mon, tue, wed = ("2026-11-02", "day"), ("2026-11-03", "day"), ("2026-11-04", "day")
+    best = without_shifts(reference, [mon])
+    scheduler = ScriptedScheduler([best, without_shifts(reference, [mon, tue]), without_shifts(reference, [mon, tue, wed])])
 
     class Editor(HintingRulesChecker):
         def add_fix_hints(self, draft, violations, inputs):
@@ -260,8 +262,8 @@ def test_the_final_draft_is_exactly_what_was_checked(mock_inputs, reference):
             return super().add_fix_hints(draft, violations, inputs)
 
     result = run_phase1(scheduler, Editor(), mock_inputs)
-    expected = len(reference.assignments) - 3
-    assert len(result.final_draft.assignments) == expected
+    assert result.final_draft.version == 1
+    assert len(result.final_draft.assignments) == len(best.assignments)
 
 
 # === 6. Scale and sanity ===============================================================
@@ -277,5 +279,47 @@ def test_a_very_large_draft_is_checked_quickly():
 
 
 def test_the_reference_draft_still_passes_after_all_this(mock_inputs, reference):
+    result = check_rules(reference, mock_inputs.demand, mock_inputs.availability, mock_inputs.roster, mock_inputs.rules)
+    assert result.passed
+
+
+# === 7. Auto-adjusting: sloppy but unambiguous values are fixed, ambiguous ones rejected ===
+
+
+@pytest.mark.parametrize("sloppy,fixed", [
+    ("7:00", "07:00"), (" 07:00 ", "07:00"), ("07:00:00", "07:00"), ("7am", "07:00"), ("7 AM", "07:00"),
+    ("7:30 PM", "19:30"), ("12:00 AM", "00:00"), ("12:00 PM", "12:00"), ("19:00", "19:00"), ("0:05", "00:05"),
+])
+def test_unambiguous_times_are_adjusted(sloppy, fixed):
+    a = Assignment(unit="7W", date=MON, shift="day", nurse_id="N001", shift_start=sloppy, shift_end="19:00")
+    assert a.shift_start == fixed
+
+
+@pytest.mark.parametrize("sloppy,fixed", [("2026-11-2", "2026-11-02"), ("2026/11/02", "2026-11-02"),
+                                           (" 2026-11-02 ", "2026-11-02"), ("2026-1-5", "2026-01-05")])
+def test_unambiguous_dates_are_adjusted(sloppy, fixed):
+    a = Assignment(unit="7W", date=sloppy, shift="day", nurse_id="N001", shift_start="07:00", shift_end="19:00")
+    assert a.date == fixed
+
+
+def test_an_adjusted_draft_is_checked_with_the_adjusted_values():
+    # N001 night 7pm-7am Monday, then day "7:00"-"7pm" on "2026-11-3": adjusted, this is 0 hours of rest
+    nurses = [nurse(1)]
+    drafted = draft([asg(1, MON, "night"),
+                     Assignment(unit="7W", date="2026-11-3", shift="day", nurse_id="N001",
+                                shift_start="7:00", shift_end="7pm")])
+    result = check_rules(drafted, [], avail(nurses), nurses, RULES)
+    (v,) = [x for x in result.violations if x.rule == "rest_time"]
+    assert (v.date, v.found) == (TUE, "0 hours of rest")
+
+
+def test_a_draft_edited_after_it_was_built_is_validated_again():
+    good = draft([asg(1, MON)])
+    broken = good.model_copy(update={"assignments": [good.assignments[0].model_copy(update={"shift_start": "25:99"})]})
+    with pytest.raises(DraftRejected):
+        check_rules(broken, [demand(MON, "day", 1)], avail([nurse(1)]), [nurse(1)], RULES)
+
+
+def test_a_valid_value_that_was_adjusted_does_not_change_a_clean_draft(mock_inputs, reference):
     result = check_rules(reference, mock_inputs.demand, mock_inputs.availability, mock_inputs.roster, mock_inputs.rules)
     assert result.passed
