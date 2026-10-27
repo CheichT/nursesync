@@ -25,6 +25,7 @@ stand_ins.py for tests and demos. The real AI-backed agents come later, once the
 import argparse
 import json
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Protocol, Tuple
 
@@ -216,13 +217,36 @@ def _finish(outcome: str, case_id: str, snapshot_id: str, logs: List[RoundLog],
     )
 
 
+def _clean(value: Any, limit: int = 300) -> str:
+    """Make any text safe to print as ONE line.
+
+    Agents write free text, and a person reads this report. Line breaks, tabs and other whitespace
+    become a single space, and control and invisible characters (terminal escapes, right-to-left
+    overrides, null bytes) are removed. So agent text can never start a new line that looks like part
+    of the report, such as a fake "Outcome: passed" line, or change how a terminal draws the page.
+    Long text is cut at `limit` characters.
+    """
+    kept = []
+    for ch in str(value):
+        category = unicodedata.category(ch)
+        if ch.isspace() or category in ("Zl", "Zp"):
+            kept.append(" ")
+        elif category in ("Cc", "Cf", "Cs", "Co", "Cn"):
+            continue
+        else:
+            kept.append(ch)
+    text = " ".join("".join(kept).split())
+    return text if len(text) <= limit else text[: limit - 1] + "\u2026"
+
+
 def format_report(result: Phase1Result) -> str:
-    """A plain-text report for the person running the harness."""
-    lines = [f"Case {result.case_id} ({result.snapshot_id})",
+    """A plain-text report for the person running the harness. Every piece of text goes through _clean."""
+    c = _clean
+    lines = [f"Case {c(result.case_id)} ({c(result.snapshot_id)})",
              f"Outcome: {result.outcome} after {result.rounds_used} round(s)", ""]
     for r in result.rounds:
-        status = f"error: {r.error}" if r.error else f"{r.hard_violations} hard violation(s)"
-        extra = f" | {r.note}" if r.note else ""
+        status = f"error: {c(r.error)}" if r.error else f"{r.hard_violations} hard violation(s)"
+        extra = f" | {c(r.note)}" if r.note else ""
         lines.append(f"  Round {r.version}: {status}{extra}")
     lines.append("")
     if result.final_draft is None:
@@ -236,18 +260,18 @@ def format_report(result: Phase1Result) -> str:
     lines.append("")
     lines.append(f"Open hard violations ({len(result.open_violations)}):")
     for v in result.open_violations:
-        who = v.nurse_id or "(whole shift)"
-        hint = f" Hint: {v.fix_hint}" if v.fix_hint else ""
-        lines.append(f"  - {v.rule}: {who}, {v.date} {v.shift}. Found {v.found}; limit {v.limit}.{hint}")
+        who = c(v.nurse_id) or "(whole shift)"
+        hint = f" Hint: {c(v.fix_hint)}" if v.fix_hint else ""
+        lines.append(f"  - {v.rule}: {who}, {c(v.date)} {v.shift}. Found {c(v.found)}; limit {c(v.limit)}.{hint}")
     lines.append(f"Unfixable rows ({len(result.unfixable)}):")
     for u in result.unfixable:
-        lines.append(f"  - {u.rule}: {u.nurse_id or '(whole shift)'}, {u.date} {u.shift}. {u.reason}")
+        lines.append(f"  - {u.rule}: {c(u.nurse_id) or '(whole shift)'}, {c(u.date)} {u.shift}. {c(u.reason)}")
     lines.append(f"Needs manual review ({len(result.needs_manual_review)}):")
     for n in result.needs_manual_review:
-        lines.append(f"  - {n.item_type} {n.id}: {n.note}")
+        lines.append(f"  - {n.item_type} {c(n.id)}: {c(n.note)}")
     lines.append(f"Soft tradeoffs ({len(result.soft_tradeoffs)}):")
-    for s in result.soft_tradeoffs:
-        lines.append(f"  - {s.rule}: {s.nurse_id}, {s.date} {s.shift}. {s.note}")
+    for t in result.soft_tradeoffs:
+        lines.append(f"  - {t.rule}: {c(t.nurse_id)}, {c(t.date)} {t.shift}. {c(t.note)}")
     return "\n".join(lines)
 
 
