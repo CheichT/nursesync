@@ -29,7 +29,7 @@ import sys
 from tempfile import TemporaryDirectory
 import unicodedata
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Protocol, Tuple
+from typing import Any, Callable, Dict, List, Literal, Optional, Protocol, Tuple
 
 from collections import Counter
 
@@ -42,6 +42,7 @@ from app.contract.models import (
     NeedsManualReview,
     Nurse,
     RulesConfig,
+    CheckRulesResult,
     SoftTradeoff,
     Unfixable,
     Violation,
@@ -175,6 +176,32 @@ def _get_draft(scheduler: Scheduler, version: int, inputs: Phase1Inputs, previou
     return draft
 
 
+def _get_verdict(checker: Callable[..., Any], draft: Draft, inputs: Phase1Inputs,
+                 log: RoundLog) -> Optional[CheckRulesResult]:
+    """Run the check. A missing, unparseable or stale verdict is a failed round, never a pass."""
+    try:
+        verdict = checker(draft, inputs.demand, inputs.availability, inputs.roster, inputs.rules)
+    except DraftRejected as err:  # for example shift times that differ from rules.shift_times
+        log.error = str(err)
+        return None
+    except Exception as err:
+        log.error = f"the check result is missing: {err}"
+        return None
+    if verdict is None:
+        log.error = "the check result is missing"
+        return None
+    try:
+        result = verdict if isinstance(verdict, CheckRulesResult) else CheckRulesResult.model_validate(verdict)
+    except (ValidationError, TypeError, ValueError) as err:
+        log.error = f"the check result could not be parsed: {str(err).splitlines()[0]}"
+        return None
+    if (result.case_id, result.version) != (draft.case_id, draft.version):
+        log.error = (f"the check result is stale: it is for {result.case_id} version {result.version}, "
+                     f"the draft is {draft.case_id} version {draft.version}")
+        return None
+    return result
+
+
 def _fix_hints(rules_checker: RulesChecker, draft: Draft, code_list: List[Violation],
                inputs: Phase1Inputs, log: RoundLog) -> List[Violation]:
     """Ask the agent for hints, then keep the CODE's list. The agent's hints are copied onto matching rows."""
@@ -201,7 +228,7 @@ def _fix_hints(rules_checker: RulesChecker, draft: Draft, code_list: List[Violat
 
 def run_phase1(scheduler: Scheduler, rules_checker: RulesChecker, inputs: Phase1Inputs,
                case_id: str = "case-1", snapshot_id: str = "phase1-snapshot",
-               max_rounds: int = MAX_ROUNDS) -> Phase1Result:
+               max_rounds: int = MAX_ROUNDS, checker: Callable[..., Any] = check_rules) -> Phase1Result:
     logs: List[RoundLog] = []
     previous: Optional[Draft] = None
     hints: List[Violation] = []
@@ -213,10 +240,8 @@ def run_phase1(scheduler: Scheduler, rules_checker: RulesChecker, inputs: Phase1
         draft = _get_draft(scheduler, version, inputs, previous, hints, case_id, snapshot_id, log)
         if draft is None:
             continue  # a failed round; the next round gets the same hints
-        try:
-            result = check_rules(draft, inputs.demand, inputs.availability, inputs.roster, inputs.rules)
-        except DraftRejected as err:  # for example shift times that differ from rules.shift_times
-            log.error = str(err)
+        result = _get_verdict(checker, draft, inputs, log)
+        if result is None:
             continue  # a failed round; the draft is not kept
         previous = draft
         log.hard_violations = len(result.violations)
