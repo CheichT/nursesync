@@ -1,198 +1,226 @@
 [
   {
-    "id": "admin-1",
-    "name": "Pat Rivera",
-    "isAdmin": true
-  },
-  {
-    "id": "n01",
+    "nurse_id": "N001",
     "name": "Avery Brooks",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS",
-      "ACLS",
-      "Charge"
+      "ACLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n02",
+    "nurse_id": "N002",
     "name": "Jordan Patel",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS",
-      "ACLS",
-      "Charge"
+      "ACLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n03",
+    "nurse_id": "N003",
     "name": "Casey Nguyen",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS",
-      "ACLS",
-      "Charge"
+      "ACLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n04",
+    "nurse_id": "N004",
     "name": "Riley Thompson",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS",
-      "ACLS",
-      "Charge"
+      "ACLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n05",
+    "nurse_id": "N005",
     "name": "Drew Santos",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS",
-      "ACLS",
-      "Charge"
+      "ACLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n06",
+    "nurse_id": "N006",
     "name": "Taylor Kim",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
-      "BLS"
+      "BLS",
+      "ACLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n07",
+    "nurse_id": "N007",
     "name": "Jamie Okafor",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS",
       "ACLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n08",
+    "nurse_id": "N008",
     "name": "Quinn Rossi",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
-      "BLS"
+      "BLS",
+      "ACLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n09",
+    "nurse_id": "N009",
     "name": "Dakota Ellis",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
-      "BLS",
-      "ACLS",
-      "Charge"
+      "BLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n10",
+    "nurse_id": "N010",
     "name": "Skyler Bennett",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n11",
+    "nurse_id": "N011",
     "name": "Reese Alvarez",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
-      "BLS",
-      "ACLS"
+      "BLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n12",
+    "nurse_id": "N012",
     "name": "Parker Singh",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS"
     ],
-    "employment": "full_time",
-    "max_weekly_hours": 40
+    "hours_this_week": 0
   },
   {
-    "id": "n13",
+    "nurse_id": "N013",
     "name": "Emerson Cole",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS"
     ],
-    "employment": "part_time",
-    "max_weekly_hours": 24
+    "hours_this_week": 0
   },
   {
-    "id": "n14",
+    "nurse_id": "N014",
     "name": "Rowan Fischer",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
-      "BLS",
-      "ACLS"
+      "BLS"
     ],
-    "employment": "part_time",
-    "max_weekly_hours": 24
+    "hours_this_week": 0
   },
   {
-    "id": "n15",
+    "nurse_id": "N015",
     "name": "Harper Lewis",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS"
     ],
-    "employment": "part_time",
-    "max_weekly_hours": 24
+    "hours_this_week": 0
   },
   {
-    "id": "n16",
+    "nurse_id": "N016",
     "name": "Sage Mitchell",
-    "isAdmin": false,
-    "unit": "Med-Surg",
+    "unit": "7W",
     "certifications": [
       "BLS"
     ],
-    "employment": "part_time",
-    "max_weekly_hours": 24
+    "hours_this_week": 0
+  },
+  {
+    "nurse_id": "N017",
+    "name": "Morgan Reyes",
+    "unit": "7W",
+    "certifications": [
+      "BLS"
+    ],
+    "hours_this_week": 0
+  },
+  {
+    "nurse_id": "N018",
+    "name": "Finley Grant",
+    "unit": "7W",
+    "certifications": [
+      "BLS"
+    ],
+    "hours_this_week": 0
+  },
+  {
+    "nurse_id": "N019",
+    "name": "Logan Hayes",
+    "unit": "7W",
+    "certifications": [
+      "BLS"
+    ],
+    "hours_this_week": 0
+  },
+  {
+    "nurse_id": "N020",
+    "name": "Blake Moreno",
+    "unit": "7W",
+    "certifications": [
+      "BLS"
+    ],
+    "hours_this_week": 0
+  },
+  {
+    "nurse_id": "N021",
+    "name": "Cameron Doyle",
+    "unit": "7W",
+    "certifications": [
+      "BLS"
+    ],
+    "hours_this_week": 0
+  },
+  {
+    "nurse_id": "N022",
+    "name": "Sasha Whitfield",
+    "unit": "7W",
+    "certifications": [
+      "BLS"
+    ],
+    "hours_this_week": 0
+  },
+  {
+    "nurse_id": "N023",
+    "name": "Devon Park",
+    "unit": "7W",
+    "certifications": [
+      "BLS"
+    ],
+    "hours_this_week": 0
+  },
+  {
+    "nurse_id": "N024",
+    "name": "Kai Lindqvist",
+    "unit": "7W",
+    "certifications": [
+      "BLS"
+    ],
+    "hours_this_week": 0
   }
 ]

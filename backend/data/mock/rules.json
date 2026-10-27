@@ -1,0 +1,10 @@
+{
+  "min_rest_hours": 10,
+  "max_weekly_hours": 40,
+  "max_consecutive_shifts": 3,
+  "required_certifications_per_shift": [
+    "ACLS"
+  ],
+  "ratio_patients_per_nurse": 5,
+  "max_fairness_gap": 2
+}
