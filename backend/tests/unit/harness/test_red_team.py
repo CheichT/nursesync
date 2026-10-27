@@ -134,13 +134,13 @@ def test_shifts_outside_the_demanded_week_still_need_availability():
     assert not result.passed
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: shift length comes from the draft's own times, so a draft can shrink its hours (a 12-hour day shift written as 1 hour)")
 def test_a_draft_cannot_shrink_its_own_hours():
     nurses = [nurse(1)]
     days = [MON, TUE, THU, FRI, SUN]  # five day shifts, really 60 hours, with no run longer than 3 days
     sneaky = [asg(1, d, "day", start="07:00", end="08:00") for d in days]  # claims 1 hour each
-    result = check_rules(draft(sneaky), [demand(d, "day", 1) for d in days], avail(nurses), nurses, RULES)
-    assert not result.passed  # a 'day' shift is 12 hours however the draft labels it
+    with pytest.raises(DraftRejected) as err:
+        check_rules(draft(sneaky), [demand(d, "day", 1) for d in days], avail(nurses), nurses, RULES)
+    assert "a day shift is 07:00-19:00" in str(err.value)
 
 
 # === 3. Hostile or contradictory input files ==========================================
@@ -488,3 +488,93 @@ def test_very_long_text_is_cut(mock_inputs, reference):
 def test_text_is_cut_but_the_meaning_of_the_words_stays_readable(mock_inputs, reference):
     report = format_report(_hostile_result(mock_inputs, reference, "Nobody  is\n   free   that\tday."))
     assert "Nobody is free that day." in report
+
+
+# === 11. Shift times come from rules.json, never from the draft =========================
+
+from app.contract.models import ShiftTimes  # noqa: E402
+
+
+def test_the_exact_defined_times_pass():
+    nurses = [nurse(1)]
+    assert check_rules(draft([asg(1, MON, "day"), asg(1, TUE, "night")]), [], avail(nurses), nurses, RULES).violations == []
+
+
+@pytest.mark.parametrize("shift,start,end", [
+    ("day", "07:00", "08:00"),    # shrunk to 1 hour
+    ("day", "07:00", "23:00"),    # stretched to 16 hours
+    ("day", "08:00", "20:00"),    # shifted an hour
+    ("night", "19:00", "20:00"),  # shrunk
+    ("night", "07:00", "19:00"),  # a night shift wearing day times
+    ("day", "19:00", "07:00"),    # a day shift wearing night times
+])
+def test_any_times_that_differ_from_the_definition_reject_the_draft(shift, start, end):
+    nurses = [nurse(1)]
+    with pytest.raises(DraftRejected):
+        check_rules(draft([asg(1, MON, shift, start=start, end=end)]), [], avail(nurses), nurses, RULES)
+
+
+def test_sloppy_but_equal_times_are_fine_after_auto_adjusting():
+    nurses = [nurse(1)]
+    day = Assignment(unit="7W", date=MON, shift="day", nurse_id="N001", shift_start="7am", shift_end="7:00 PM")
+    assert check_rules(draft([day]), [], avail(nurses), nurses, RULES).violations == []
+
+
+def test_the_rejection_names_the_assignment_and_the_correct_times():
+    nurses = [nurse(1), nurse(2)]
+    bad = [asg(1, MON, "day", start="07:00", end="08:00"), asg(2, TUE, "night", start="19:00", end="20:00")]
+    with pytest.raises(DraftRejected) as err:
+        check_rules(draft(bad), [], avail(nurses), nurses, RULES)
+    message = str(err.value)
+    assert "N001 2026-11-02 day has times 07:00-08:00" in message and "(and 1 more)" in message
+
+
+def test_a_custom_shift_definition_is_respected():
+    custom = RULES.model_copy(update={"shift_times": {"day": ShiftTimes(start="06:00", end="18:00"),
+                                                      "night": ShiftTimes(start="18:00", end="06:00")}})
+    nurses = [nurse(1)]
+    ok = Assignment(unit="7W", date=MON, shift="day", nurse_id="N001", shift_start="06:00", shift_end="18:00")
+    assert check_rules(draft([ok]), [], avail(nurses), nurses, custom).violations == []
+    with pytest.raises(DraftRejected):  # the old 07:00-19:00 times no longer match
+        check_rules(draft([asg(1, MON, "day")]), [], avail(nurses), nurses, custom)
+
+
+def test_the_harness_treats_wrong_shift_times_as_a_failed_round_and_moves_on(mock_inputs, reference):
+    shrunk = reference.model_copy(deep=True)
+    shrunk.assignments[0] = shrunk.assignments[0].model_copy(update={"shift_end": "08:00"})
+    result = run_phase1(ScriptedScheduler([shrunk, reference]), HintingRulesChecker(), mock_inputs)
+    assert result.outcome == "passed" and result.rounds_used == 2
+    assert "draft rejected" in result.rounds[0].error and "a day shift is 07:00-19:00" in result.rounds[0].error
+
+
+def test_the_harness_never_passes_a_draft_with_wrong_times(mock_inputs, reference):
+    shrunk = reference.model_copy(deep=True)
+    shrunk.assignments[0] = shrunk.assignments[0].model_copy(update={"shift_end": "08:00"})
+    result = run_phase1(ScriptedScheduler([shrunk]), HintingRulesChecker(), mock_inputs)
+    assert result.outcome == "stopped_after_3_rounds" and result.final_draft is None
+    assert all("draft rejected" in r.error for r in result.rounds)
+
+
+def test_rules_without_shift_times_use_the_standard_twelve_hour_shifts():
+    limits = RULES.model_dump()
+    limits.pop("shift_times")
+    rules = RulesConfig(**limits)
+    assert (rules.shift_times["day"].start, rules.shift_times["day"].end) == ("07:00", "19:00")
+    assert (rules.shift_times["night"].start, rules.shift_times["night"].end) == ("19:00", "07:00")
+
+
+def test_the_mock_rules_file_defines_the_shift_times(mock_inputs):
+    assert mock_inputs.rules.shift_times["night"].end == "07:00"
+
+
+@pytest.mark.parametrize("bad", [
+    {"day": {"start": "07:00", "end": "19:00"}},                                           # night missing
+    {"day": {"start": "07:00", "end": "19:00"}, "night": {"start": "19:00", "end": "19:00"}},  # zero length
+    {"day": {"start": "07:00", "end": "19:00"}, "night": {"start": "25:00", "end": "07:00"}},  # not a time
+    {"day": {"start": "07:00", "end": "19:00"}, "night": {"start": "19:00", "end": "07:00"}, "evening": {"start": "15:00", "end": "23:00"}},
+])
+def test_nonsense_shift_definitions_are_rejected(bad):
+    limits = RULES.model_dump()
+    limits["shift_times"] = bad
+    with pytest.raises(ValidationError):
+        RulesConfig(**limits)

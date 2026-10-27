@@ -11,7 +11,7 @@ One unit (7W), 24 nurses, one week (Monday 2026-11-02 to Sunday 2026-11-08). The
 | `roster.json` | 24 nurses: `nurse_id`, `name`, `unit`, `certifications`, `hours_this_week`. Eight nurses (N001 to N008) hold ACLS. |
 | `demand.json` | 14 rows (7 days x 2 shifts): `patient_count` and `nurses_needed` (patients divided by 5, rounded up). Always 4 or 5 nurses. |
 | `availability.json` | 336 rows, one per nurse, date and shift: `available`, `reason` (`none` or `approved_time_off`), `status`, `note`. |
-| `rules.json` | The limits `check_rules` uses: 10 hours rest, 40 hours a week, 3 shifts in a row, ACLS on every shift, 1 nurse per 5 patients, fairness gap 2. |
+| `rules.json` | The limits `check_rules` uses: 10 hours rest, 40 hours a week, 3 shifts in a row, ACLS on every shift, 1 nurse per 5 patients, fairness gap 2, and the shift times (day 07:00 to 19:00, night 19:00 to 07:00). A draft's own times must match these. |
 | `reference_draft.json` | A correct draft in the PRD's Draft format. It has 0 hard-rule violations and a fairness gap of 2. |
 | `leave.json` | Leave requests in the Shift Board shape (`employeeId`). Not a PRD format. Only **approved** requests appear as time off in `availability.json`. Pending ones (an FMLA request and an overtime request) are information only. |
 
