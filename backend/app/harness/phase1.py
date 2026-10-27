@@ -15,6 +15,9 @@ There is no orchestrator in phase 1. This small script:
 Pass or fail always comes from check_rules, never from an agent. A draft that is missing,
 unparseable, or labeled with the wrong case_id or version counts as a failed round, never a pass.
 
+Agents only ever receive copies of the inputs, the draft and the violations, so an agent that edits
+what it was given cannot change the official data or a draft that was already checked.
+
 The agents are plug-in pieces (see `Scheduler` and `RulesChecker`). Scripted stand-ins live in
 stand_ins.py for tests and demos. The real AI-backed agents come later, once the prompts exist.
 """
@@ -106,7 +109,14 @@ def _key(v: Violation) -> Tuple[str, str, str, str]:
 def _get_draft(scheduler: Scheduler, version: int, inputs: Phase1Inputs, previous: Optional[Draft],
                violations: List[Violation], case_id: str, snapshot_id: str, log: RoundLog) -> Optional[Draft]:
     try:
-        raw = scheduler.build(version, inputs, previous, violations)
+        # The agent gets COPIES of everything, so nothing it does can change the official data
+        # or the drafts the harness is keeping and checking.
+        raw = scheduler.build(
+            version,
+            inputs.model_copy(deep=True),
+            previous.model_copy(deep=True) if previous is not None else None,
+            [v.model_copy(deep=True) for v in violations],
+        )
     except Exception as err:  # an agent failing is a failed round, not a crash
         log.error = f"the Scheduler failed: {err}"
         return None
@@ -130,7 +140,11 @@ def _fix_hints(rules_checker: RulesChecker, draft: Draft, code_list: List[Violat
                inputs: Phase1Inputs, log: RoundLog) -> List[Violation]:
     """Ask the agent for hints, then keep the CODE's list. The agent's hints are copied onto matching rows."""
     try:
-        agent_list = rules_checker.add_fix_hints(draft, [v.model_copy() for v in code_list], inputs)
+        agent_list = rules_checker.add_fix_hints(
+            draft.model_copy(deep=True),
+            [v.model_copy(deep=True) for v in code_list],
+            inputs.model_copy(deep=True),
+        )
     except Exception as err:
         log.agent_list_matched = False
         log.note = f"the Rules Checker failed ({err}); using the code's list without hints"

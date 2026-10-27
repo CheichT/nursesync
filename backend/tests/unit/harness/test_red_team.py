@@ -228,7 +228,6 @@ def test_scheduler_text_cannot_forge_a_line_in_the_report(mock_inputs, reference
 # === 5. A misbehaving agent must not tamper with the official data ====================
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: agents receive the real input objects, so a Scheduler can edit availability and make a bad draft pass")
 def test_a_scheduler_cannot_edit_the_availability_it_is_checked_against(mock_inputs, reference):
     inputs = mock_inputs.model_copy(deep=True)
     off = next(r for r in inputs.availability if r.reason == "approved_time_off")
@@ -246,8 +245,6 @@ def test_a_scheduler_cannot_edit_the_availability_it_is_checked_against(mock_inp
     assert result.outcome == "stopped_after_3_rounds"  # the tampering must not turn a failure into a pass
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING: the Rules Checker receives the live draft, so it can edit it after the check and the final draft no longer matches what was checked")
-@pytest.mark.xfail(strict=True, reason="FINDING: the Rules Checker receives the live draft, so it can edit it after the check and the final draft no longer matches what was checked")
 def test_the_final_draft_is_exactly_what_was_checked(mock_inputs, reference):
     from app.harness.stand_ins import without_shifts
 
@@ -323,3 +320,65 @@ def test_a_draft_edited_after_it_was_built_is_validated_again():
 def test_a_valid_value_that_was_adjusted_does_not_change_a_clean_draft(mock_inputs, reference):
     result = check_rules(reference, mock_inputs.demand, mock_inputs.availability, mock_inputs.roster, mock_inputs.rules)
     assert result.passed
+
+
+# === 8. Agents get copies: nothing an agent does to what it was given sticks =========
+
+
+def test_a_scheduler_cannot_edit_the_previous_draft_to_change_the_result(mock_inputs, reference):
+    from app.harness.stand_ins import without_shifts
+
+    first = without_shifts(reference, [("2026-11-02", "day")])  # the best draft: 1 emptied shift
+
+    class Vandal:
+        def build(self, version, inputs, previous_draft, violations):
+            if previous_draft is not None:
+                previous_draft.assignments.clear()  # vandalizes the draft the harness is keeping
+                violations.clear()
+            return first.model_copy(update={"version": version}) if version == 1 else \
+                without_shifts(reference, [("2026-11-02", "day"), ("2026-11-03", "day")]).model_copy(update={"version": version})
+
+    result = run_phase1(Vandal(), HintingRulesChecker(), mock_inputs)
+    assert result.final_draft.version == 1
+    assert len(result.final_draft.assignments) == len(first.assignments)  # still intact
+
+
+def test_a_scheduler_that_clears_its_violations_does_not_hurt_the_next_round(mock_inputs, reference):
+    seen = []
+
+    class Forgetful:
+        def build(self, version, inputs, previous_draft, violations):
+            seen.append(len(violations))
+            violations.clear()  # throws away what it was told
+            return None if version == 2 else without(reference, 2).model_copy(update={"version": version})
+
+    run_phase1(Forgetful(), HintingRulesChecker(), mock_inputs)
+    assert seen[1] > 0 and seen[2] > 0  # round 3 still gets the violations after a failed round 2
+
+
+def test_a_rules_checker_cannot_edit_the_inputs_the_harness_uses(mock_inputs, reference):
+    inputs = mock_inputs.model_copy(deep=True)
+    before = [n.model_dump() for n in inputs.roster]
+
+    class Meddler(HintingRulesChecker):
+        def add_fix_hints(self, draft, violations, inputs_):
+            for n in inputs_.roster:
+                n.certifications = ["BLS", "ACLS"]  # tries to grant everyone ACLS
+            inputs_.rules.max_weekly_hours = 999
+            return super().add_fix_hints(draft, violations, inputs_)
+
+    bad = without(reference, 2)
+    result = run_phase1(ScriptedScheduler([bad] * 3), Meddler(), inputs)
+    assert result.outcome == "stopped_after_3_rounds"
+    assert [n.model_dump() for n in inputs.roster] == before and inputs.rules.max_weekly_hours == 40
+
+
+def test_a_rules_checker_cannot_shorten_the_violation_list_the_harness_keeps(mock_inputs, reference):
+    class Shredder(HintingRulesChecker):
+        def add_fix_hints(self, draft, violations, inputs_):
+            violations.clear()
+            return []
+
+    scheduler = ScriptedScheduler([without(reference, 2), reference])
+    run_phase1(scheduler, Shredder(), mock_inputs)
+    assert len(scheduler.calls[1]["violations"]) > 0  # the code's list still reached the Scheduler
