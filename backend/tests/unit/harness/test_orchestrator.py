@@ -23,14 +23,14 @@ def _raw(name):
     return [{k: v for k, v in r.items() if k not in ("status", "note")} for r in rows]
 
 
-def _run(demand=None, availability=None, case_id="case-1"):
+def _run(demand=None, availability=None, case_id="case-1", leave=None):
     inputs = load_inputs()
     reference = Draft(**json.loads((Path(DEFAULT_DATA) / "reference_draft.json").read_text()))
     return run_case(
         ScriptedDemandAgent(_raw("demand.json") if demand is None else demand),
         ScriptedAvailabilityAgent(_raw("availability.json") if availability is None else availability),
         ScriptedScheduler([reference], case_id=case_id, snapshot_id=snapshot_id_for(case_id)),
-        HintingRulesChecker(), inputs.roster, inputs.rules, "7W", WEEK, case_id,
+        HintingRulesChecker(), inputs.roster, inputs.rules, "7W", WEEK, case_id, leave=leave,
     )
 
 
@@ -126,3 +126,51 @@ def test_a_scheduler_with_the_wrong_snapshot_id_fails_every_round():
                    ScriptedScheduler([reference], snapshot_id="phase1-snapshot"), HintingRulesChecker(),
                    inputs.roster, inputs.rules, "7W", WEEK, "case-1")
     assert rec.state == "failed" and all("labeled" in r.error for r in rec.rounds)
+
+
+def _leave_rows():
+    return json.loads((Path(DEFAULT_DATA) / "leave.json").read_text())
+
+
+def test_available_on_an_approved_leave_day_is_needs_review():
+    rows = _raw("availability.json")  # mock leave: N003 approved PTO on 2026-11-04; the agent says available
+    for r in rows:
+        if r["nurse_id"] == "N003" and r["date"] == "2026-11-04":
+            r.update(available=True, reason="none")
+    rec = _run(availability=rows, leave=_leave_rows())
+    flagged = [r for r in rec.availability_result.rows if r.status == "needs_review"]
+    assert flagged and all("approved" in r.note and "leave" in r.note for r in flagged)
+    n003 = [r for r in flagged if r.nurse_id == "N003"]
+    assert {(r.date, r.shift) for r in n003} == {("2026-11-04", "day"), ("2026-11-04", "night")}
+    assert all(r.available is True for r in n003)  # the value is kept
+
+
+def test_pending_denied_and_broken_leave_is_ignored():
+    leave = [
+        {"employeeId": "N003", "start": "2026-11-04", "end": "2026-11-04", "type": "pto", "status": "pending"},
+        {"employeeId": "N003", "start": "2026-11-04", "end": "2026-11-04", "type": "pto", "status": "denied"},
+        {"employeeId": "N003", "start": "soon", "end": "later", "status": "approved"},
+        "junk", None, {"status": "approved"},
+    ]
+    assert _run(leave=leave).availability_result.counts.needs_review == 0
+
+
+def test_mock_week_with_its_real_leave_file_is_clean():
+    assert _run(leave=_leave_rows()).availability_result.counts.needs_review == 0
+
+
+def test_agent_already_saying_unavailable_on_leave_day_stays_ok():
+    rows = _raw("availability.json")
+    for r in rows:
+        if r["nurse_id"] == "N003" and r["date"] == "2026-11-04":
+            r.update(available=False, reason="approved_time_off")
+    rec = _run(availability=rows, leave=_leave_rows())
+    assert not [r for r in rec.availability_result.rows if r.nurse_id == "N003" and r.date == "2026-11-04"
+                and r.status != "ok"]
+
+
+def test_multi_day_leave_covers_every_day():
+    leave = [{"employeeId": "N001", "start": "2026-11-02", "end": "2026-11-03", "type": "vacation",
+              "status": "approved"}]
+    flagged = [r for r in _run(leave=leave).availability_result.rows if r.status == "needs_review"]
+    assert {(r.nurse_id, r.date) for r in flagged} == {("N001", "2026-11-02"), ("N001", "2026-11-03")}
