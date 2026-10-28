@@ -1,8 +1,8 @@
 # NurseSync approval view — v0 (Phase 3)
 
 > **Owner: Kerrian Gordon** (PRD section 3b / 3f). Source of truth: PRD “Case record” and `backend/app/contract/case_record.py` (Cheich).  
-> UI: admin tab **Approve AI draft** (`src/ApprovalView.jsx`) against `docs/sample-cases/` until Cheich says the HTTP API is ready.  
-> Version one does **not** send schedules to nurses. Do not describe local decisions as secure.
+> UI: admin tab **Approve AI draft** (`src/ApprovalView.jsx`) talks to Cheich’s local case API (`docs/api-v0.md`). Falls back to `docs/sample-cases/` if the API is down.  
+> Version one does **not** send schedules to nurses. **No login — local only; do not describe as secure.**
 
 ## Closed with Cheich (2026-10-28)
 
@@ -11,8 +11,8 @@
 - **Stop vs build:** a missing required row stops the run (no draft, no Approve). `needs_review` alone still builds.
 - **Fix inputs:** missing availability has no “fix” action in product yet. Only a new run fixes it. UI can Reject or Change demand where allowed.
 - **Demand change:** old case → `out_of_date`; child case starts. After submit, go to `newer_case_id`.
-- **HTTP API:** Cheich is building it (wraps `decisions.py` + `case_store.py`: list, get, approve with acknowledge flag, reject, change demand). Local-only, no login. **Do not** point the UI at an API until he says it is ready. Until then, keep reading `docs/sample-cases/`.
-- **CaseRecord shape** will not change for that API.
+- **HTTP API:** shipped (`docs/api-v0.md`). UI uses list / get / approve / reject / change-demand via the Vite `/api` proxy. Sample JSON remains a fallback when the server is off.
+- **CaseRecord shape** unchanged. Change demand needs `NURSESYNC_LIVE=1` on the server (costs money).
 
 ## Purpose
 
@@ -110,8 +110,19 @@ If a late call-out or demand change created a newer case:
 - Status not by color alone; muted labels use theme variables (readable in dark mode)  
 - Logical headings: Attention → Schedule → Notes → Actions  
 
+## Run (dev)
+
+```bash
+# terminal 1 — local API (this computer only)
+cd backend && ../.venv/bin/python -m app.serve --seed-samples
+
+# terminal 2 — app (open http://localhost:5173)
+npm run dev
+```
+
 ## Not in this version
 
-- Calling Cheich’s HTTP API (until he says ready)  
+- Login / permissions  
 - Shift Board notification to nurses  
 - Fix-inputs flow for missing availability  
+- Starting weekly runs or call-outs through the API  

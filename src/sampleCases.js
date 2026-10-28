@@ -1,6 +1,6 @@
 /**
  * Sample CaseRecords from docs/sample-cases/ (Cheich).
- * No API yet — the approval UI loads these on demand (lazy JSON chunks).
+ * Fallback when the local case API is offline. Prefer src/caseApi.js in the approval UI.
  */
 
 const loaders = import.meta.glob("../docs/sample-cases/*.json");
