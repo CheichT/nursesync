@@ -123,6 +123,27 @@ Live ×3 (`python -m app.run_eval case_10 --runs 3`). Model: `claude-sonnet-5-5`
 
 ---
 
+## Final suite (2026-10-28) — full board vs baseline where applicable
+
+One pass of every live card ×3, plus code-only 13–14. Baseline compared on cases 02, 03, and 07.
+
+| Case | Result | Notes |
+| --- | --- | --- |
+| 01 | pass ×3 | Team: 0 hard, 14/14, 1 round |
+| 02 | pass ×3 | Baseline and team both 0 hard, 14/14 (tie) |
+| 03 | pass ×3 | Honesty: invented 0, listed_missing true; team stops |
+| 04 | pass ×3 | |
+| 05 | pass ×3 | stop-after-3 behavior |
+| 06 | pass ×3 | |
+| 07 | pass ×3 | Baseline vs team on clean week (tie) |
+| 10 | pass ×3 | Re-run after suite hit Anthropic connection errors; N006 replaced, 0 hard |
+| 13 | pass | code-only |
+| 14 | pass | code-only |
+
+**Verdict:** Final suite **pass**. Case 10’s first suite attempt failed on `Connection error` only; the re-run above is the recorded result.
+
+---
+
 ## Summary
 
 | Case | Card result |
@@ -137,5 +158,6 @@ Live ×3 (`python -m app.run_eval case_10 --runs 3`). Model: `claude-sonnet-5-5`
 | 10 | pass |
 | 13 | pass |
 | 14 | pass |
+| **Final suite** | **pass** |
 
-No failures to report. Did not edit `check_rules`, `models.py`, or the orchestrator.
+No logic failures to report. Did not edit `check_rules` or the orchestrator.

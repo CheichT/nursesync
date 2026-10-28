@@ -78,7 +78,7 @@ locked changes. See `backend/evals/phase1/RESULTS.md`.
 
 ## What is left
 
-- Live runs of evals 2 and 10 for the call-out flow, then **a final run of every eval against the baseline**.
+- Final full-suite vs baseline: **done 2026-10-28** (see `backend/evals/phase1/RESULTS.md` “Final suite”). Case 10 needed a re-run after transient connection errors.
 - API: start a weekly run and apply a call-out through the API (both cost money; need guards and a spend cap); choose
   roster and rules by the case's unit.
 - Real Shift Board data in place of mock files; Availability batching for units of about 50 nurses (output is cut off
@@ -86,7 +86,7 @@ locked changes. See `backend/evals/phase1/RESULTS.md`.
 - A call-out after a case is approved (the PRD only covers one still waiting); a login.
 - Kerrian leftovers from 2026-10-28: Agent notes for `unusual`, case 10 card + ×3 RESULTS, and contract sign-off notes
   on `models.py` / `case_record.py` (shipped on her follow-up PR).
-- Housekeeping: accept the PRD suggestions, re-export the PRD PDF (the repo copy is stale), `cheich/agent-prompts-v0`
+- Housekeeping: PRD suggested edits accepted (2026-10-28); PRD PDF re-exported into the repo root. `cheich/agent-prompts-v0`
   is an old unmerged branch.
 
 ## How we work
