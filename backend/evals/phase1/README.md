@@ -18,3 +18,5 @@ Code-only paths (parts of 13–14) run once per sub-case unless a live agent is 
 | 14 — Lost or stale verdict | [case_14_lost_or_stale_verdict.md](case_14_lost_or_stale_verdict.md) | Missing / unparseable / stale check result |
 
 Owner: Kerrian Gordon. Do not edit `models.py` or mock files from this workstream.
+
+**Live run results:** [RESULTS.md](RESULTS.md)
