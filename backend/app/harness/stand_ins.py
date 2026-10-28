@@ -88,3 +88,19 @@ DEMOS: Dict[str, Callable[[Draft], Tuple[ScriptedScheduler, HintingRulesChecker]
     "fixes": lambda ref: (ScriptedScheduler([without(ref, 2), ref]), HintingRulesChecker()),
     "stuck": lambda ref: (ScriptedScheduler([without(ref, 3), without(ref, 2), without(ref, 4)]), HintingRulesChecker()),
 }
+
+
+class ScriptedDemandAgent:
+    """Returns fixed demand rows (a list of plain dicts). Pass an Exception to make it fail."""
+
+    def __init__(self, rows: Any):
+        self.rows = rows
+
+    def run(self, snapshot: Any) -> Any:
+        if isinstance(self.rows, Exception):
+            raise self.rows
+        return [dict(r) for r in self.rows]
+
+
+class ScriptedAvailabilityAgent(ScriptedDemandAgent):
+    """Same, for availability rows."""
