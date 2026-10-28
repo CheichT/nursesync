@@ -183,13 +183,17 @@ def stamp_demand(raw: Any, snapshot: Snapshot, agent_error: str = "") -> DemandR
             note = _flag(candidates[0])
             expected = math.ceil(row.patient_count / ratio)
             if not note and row.nurses_needed != expected:
-                note = (f"{row.nurses_needed} nurses for {row.patient_count} patients does not match "
+                note = (f"{_nurses(row.nurses_needed)} for {row.patient_count} patients does not match "
                         f"the ratio of {ratio} patients per nurse (expected {expected})")
             if note:
                 row = row.model_copy(update={"status": "needs_review", "note": note})
             rows.append(row)
     rows = _flag_outliers(rows)
     return DemandResult(rows=rows, counts=status_counts(rows))
+
+
+def _nurses(n: int) -> str:
+    return f"{n} nurse" if n == 1 else f"{n} nurses"
 
 
 def _flag_outliers(rows: List[DemandRow]) -> List[DemandRow]:
@@ -203,7 +207,7 @@ def _flag_outliers(rows: List[DemandRow]) -> List[DemandRow]:
         median = statistics.median(values)
         for i, r in enumerate(flagged):
             if r.shift == shift and r.nurses_needed is not None and abs(r.nurses_needed - median) > 2:
-                note = f"{r.nurses_needed} nurses is more than 2 away from the {shift}-shift median of {median:g}"
+                note = f"{_nurses(r.nurses_needed)} is more than 2 away from the {shift}-shift median of {median:g}"
                 flagged[i] = r.model_copy(update={"status": "needs_review",
                                                   "note": f"{r.note}; {note}" if r.note else note})
     return flagged
