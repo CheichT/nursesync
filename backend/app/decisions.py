@@ -116,12 +116,18 @@ def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: 
     demand = DemandResult(rows=new_rows, counts=status_counts(new_rows))
 
     snapshot = make_snapshot(roster, rules, record.unit, record.week_start, snapshot_id_for(new_case_id), now)
+    scheduler = make_scheduler(new_case_id, snapshot.snapshot_id)  # may fail (for example no API key): do it before saving
     if store is not None:
         store.save(building_record(snapshot, new_case_id, record.case_id))
     kept = [n for n in record.needs_manual_review if n.note == UNKNOWN_NURSE_NOTE]
-    child = schedule_case(make_scheduler(new_case_id, snapshot.snapshot_id), rules_checker, snapshot, demand,
-                          record.availability_result.model_copy(deep=True), new_case_id, record.case_id,
-                          extra_review=kept, store=store)
+    try:
+        child = schedule_case(scheduler, rules_checker, snapshot, demand,
+                              record.availability_result.model_copy(deep=True), new_case_id, record.case_id,
+                              extra_review=kept, store=store)
+    except BaseException:
+        if store is not None:
+            store.discard_building(new_case_id)  # no ghost case that can never be decided
+        raise
     details = DecisionDetails(action="change_demand", demand_changes=list(changes), new_case_id=new_case_id)
     old = record.model_copy(update={"status": "out_of_date", "newer_case_id": new_case_id,
                                     "decision_time": _stamp(now), "decision_details": details})

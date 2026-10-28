@@ -74,5 +74,19 @@ class CaseStore:
         self.save(record)
         return record
 
+    def discard_building(self, case_id: str) -> bool:
+        """Delete a case that never finished (status building). A run that fails after its first save must not leave
+        a ghost case that can never be decided or retried. Any other status is left alone. Returns True if deleted."""
+        path = self._path(case_id)
+        if not path.exists():
+            return False
+        try:
+            if self.load(case_id).status != "building":
+                return False
+        except CaseStoreError:
+            return False
+        path.unlink()
+        return True
+
     def list_ids(self) -> List[str]:
         return sorted(p.stem for p in self.folder.glob("*.json")) if self.folder.is_dir() else []

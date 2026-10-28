@@ -7,6 +7,11 @@ refused by decisions.py, and this layer turns the refusal into a 409 with a mess
 THERE IS NO LOGIN. It is meant to run on this computer only (see serve.py: it binds to 127.0.0.1) and must not be
 described as secure. Real sign-in comes later.
 
+"Local only" does not stop a web page in the manager's browser from calling 127.0.0.1, so there are three guards:
+  - the Host header must be 127.0.0.1 or localhost (stops DNS rebinding),
+  - a POST that carries an Origin header from anywhere but the local dev origin is refused (stops cross-site posts),
+  - every POST must say Content-Type: application/json (a cross-site page cannot send that without a preflight).
+
 Change demand reruns the live Scheduler (cents to about a dollar, and it can take minutes), so it only works when
 the server was started with live agents enabled. Otherwise it answers 503 before touching anything.
 """
@@ -14,11 +19,13 @@ the server was started with live agents enabled. Otherwise it answers 503 before
 import logging
 import secrets
 import threading
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import Field
 
@@ -31,10 +38,11 @@ from app.harness.phase1 import RulesChecker, load_inputs
 log = logging.getLogger("nursesync.api")
 
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]  # the Vite dev server
+LOCAL_HOSTS = ["127.0.0.1", "localhost", "[::1]"]
 
 
 class ApproveBody(Form):
-    acknowledge_open_issues: bool = False
+    acknowledge_open_issues: bool = False  # the body itself is optional: no body means False
 
 
 class ChangeDemandBody(Form):
@@ -71,16 +79,42 @@ def _message(text: str, status: int) -> JSONResponse:
 def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] = None,
                rules_checker: Optional[RulesChecker] = None,
                load_roster_and_rules: Callable[[], Any] = load_inputs,
-               allowed_origins: Optional[List[str]] = None) -> FastAPI:
+               allowed_origins: Optional[List[str]] = None, allowed_hosts: Optional[List[str]] = None) -> FastAPI:
     """`scheduler_factory` and `rules_checker` are the live agents (or scripted ones in tests). Without them, change
     demand is switched off. `load_roster_and_rules` returns something with .roster and .rules (mock data for now,
     Shift Board later)."""
     app = FastAPI(title="NurseSync case API", version="0")
-    lock = threading.Lock()  # one decision at a time, so two clicks cannot both approve
+    origins = allowed_origins if allowed_origins is not None else DEV_ORIGINS
     live = scheduler_factory is not None and rules_checker is not None
+    case_locks: Dict[str, threading.Lock] = {}
+    registry = threading.Lock()
 
-    app.add_middleware(CORSMiddleware, allow_origins=allowed_origins if allowed_origins is not None else DEV_ORIGINS,
-                       allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
+    @contextmanager
+    def one_at_a_time(case_id: str) -> Iterator[None]:
+        """One request at a time per case, so two clicks cannot both decide it. A second request does not wait
+        (a demand change can take minutes): it is refused at once with a plain message."""
+        with registry:
+            lock = case_locks.setdefault(case_id, threading.Lock())
+        if not lock.acquire(blocking=False):
+            raise DecisionRefused("Another request is already changing this case. Wait for it to finish, then reload.")
+        try:
+            yield
+        finally:
+            lock.release()
+
+    @app.middleware("http")
+    async def guard_posts(request: Request, call_next: Callable[..., Any]) -> Any:
+        if request.method == "POST":
+            origin = request.headers.get("origin")
+            if origin is not None and origin not in origins:  # includes the literal "null" a sandboxed page sends
+                return _message("This request came from a web page that is not allowed to use this API.", 403)
+            if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+                return _message("Send Content-Type: application/json.", 415)
+        return await call_next(request)
+
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
+                       allow_headers=["Content-Type"])
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts if allowed_hosts is not None else LOCAL_HOSTS)
 
     @app.exception_handler(DecisionRefused)
     async def _refused(_: Request, err: DecisionRefused) -> JSONResponse:
@@ -128,13 +162,14 @@ def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] =
         return store.load(case_id)
 
     @app.post("/api/cases/{case_id}/approve", response_model=CaseRecord)
-    def approve_case(case_id: str, body: ApproveBody) -> CaseRecord:
-        with lock:
-            return store.update(case_id, lambda r: approve(r, body.acknowledge_open_issues))
+    def approve_case(case_id: str, body: Optional[ApproveBody] = None) -> CaseRecord:
+        acknowledge = body.acknowledge_open_issues if body is not None else False
+        with one_at_a_time(case_id):
+            return store.update(case_id, lambda r: approve(r, acknowledge))
 
     @app.post("/api/cases/{case_id}/reject", response_model=CaseRecord)
     def reject_case(case_id: str) -> CaseRecord:
-        with lock:
+        with one_at_a_time(case_id):
             return store.update(case_id, reject)
 
     @app.post("/api/cases/{case_id}/change-demand", response_model=ChangeDemandResult)
@@ -142,7 +177,7 @@ def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] =
         if not live:
             return _message("Live agents are not enabled on this server, so a demand change cannot rerun the "
                             "Scheduler. Start the server with NURSESYNC_LIVE=1.", 503)
-        with lock:
+        with one_at_a_time(case_id):
             record = store.load(case_id)
             new_id = body.new_case_id or f"case-{datetime.now():%Y%m%d%H%M%S}-{secrets.token_hex(3)}"
             if store.exists(new_id):

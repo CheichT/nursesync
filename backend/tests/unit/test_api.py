@@ -27,14 +27,21 @@ def scripted(case_id, snapshot_id):
     return ScriptedScheduler([REFERENCE], case_id=case_id, snapshot_id=snapshot_id)
 
 
+LOCAL = "http://127.0.0.1:8000"  # the Host header the real server sees; the default "testserver" is not allowed
+
+
+def local_client(app):
+    return TestClient(app, base_url=LOCAL, raise_server_exceptions=False)
+
+
 @pytest.fixture()
 def client(store):
-    return TestClient(create_app(store), raise_server_exceptions=False)
+    return local_client(create_app(store))
 
 
 @pytest.fixture()
 def live_client(store):
-    return TestClient(create_app(store, scripted, HintingRulesChecker()), raise_server_exceptions=False)
+    return local_client(create_app(store, scripted, HintingRulesChecker()))
 
 
 # --- reading ------------------------------------------------------------------------------------
@@ -107,10 +114,10 @@ def test_out_of_date_and_stopped_cases_cannot_be_approved(client):
 
 
 def test_reject_ends_the_case_with_outcome_rejected(client, store):
-    done = client.post("/api/cases/demo-stopped-missing-input/reject")
+    done = client.post("/api/cases/demo-stopped-missing-input/reject", json={})
     assert done.status_code == 200 and (done.json()["status"], done.json()["outcome"]) == ("rejected", "rejected")
     assert store.load("demo-stopped-missing-input").outcome == "rejected"
-    assert client.post("/api/cases/demo-stopped-missing-input/reject").status_code == 409
+    assert client.post("/api/cases/demo-stopped-missing-input/reject", json={}).status_code == 409
 
 
 def test_two_clicks_at_once_cannot_both_approve(client):
@@ -170,17 +177,17 @@ def test_change_demand_refusals(live_client, store):
 # --- bad input, errors, and the safety settings ----------------------------------------------------------------
 
 
-def test_request_bodies_are_strict(client):
+def test_request_bodies_are_strict(client, live_client):
     assert client.post("/api/cases/demo-passed/approve", json={"acknowledge_open_issues": True, "extra": 1}).status_code == 422
     assert client.post("/api/cases/demo-passed/approve", json={"acknowledge_open_issues": "maybe"}).status_code == 422
     assert client.post("/api/cases/demo-passed/approve", content="not json",
                        headers={"Content-Type": "application/json"}).status_code == 422
     bad = {"changes": [{"unit": "7W", "date": "2026-11-03", "shift": "night", "nurses_needed": -1}]}
-    assert client.post("/api/cases/demo-passed/change-demand", json=bad).status_code in (422, 503)
+    assert live_client.post("/api/cases/demo-passed/change-demand", json=bad).status_code == 422
 
 
 def test_an_unexpected_error_is_a_generic_500_with_no_details(store, monkeypatch):
-    c = TestClient(create_app(store), raise_server_exceptions=False)
+    c = local_client(create_app(store))
     monkeypatch.setattr(CaseStore, "load", lambda self, cid: (_ for _ in ()).throw(RuntimeError("secret path /Users/x")))
     r = c.get("/api/cases/demo-passed")
     assert r.status_code == 500 and "secret" not in r.text and "Users" not in r.text and "Nothing was changed" in r.json()["message"]
@@ -211,16 +218,127 @@ def test_seed_samples_adds_the_samples_once(tmp_path):
     assert serve.seed_samples(empty) == 0 and empty.load("demo-passed").status == "approved"  # a decision is kept
 
 
-def test_the_server_listens_on_this_computer_only():
-    assert serve.HOST == "127.0.0.1"
-    assert "0.0.0.0" not in Path(serve.__file__).read_text().replace('"0.0.0.0" not', "")
+def test_the_server_listens_on_this_computer_only(tmp_path, monkeypatch):
+    seen = {}
+    import uvicorn
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kw: seen.update(kw))
+    assert serve.main(["--port", "8123", "--store-dir", str(tmp_path)]) == 0
+    assert seen["host"] == "127.0.0.1" and seen["port"] == 8123
+    with pytest.raises(SystemExit):  # there is no option to expose it
+        serve.main(["--host", "0.0.0.0"])
 
 
 def test_live_agents_stay_off_unless_asked(tmp_path, monkeypatch):
     monkeypatch.delenv("NURSESYNC_LIVE", raising=False)
-    off = TestClient(serve.build_app(tmp_path))
+    off = TestClient(serve.build_app(tmp_path), base_url=LOCAL)
     assert off.get("/api/health").json()["live_agents"] is False
     monkeypatch.setenv("NURSESYNC_LIVE", "1")
     monkeypatch.setattr("app.config.load_api_key", lambda: "test-key-not-real")
-    on = TestClient(serve.build_app(tmp_path))
+    on = TestClient(serve.build_app(tmp_path), base_url=LOCAL)
     assert on.get("/api/health").json()["live_agents"] is True
+
+
+# --- the guards: web pages in the browser must not be able to drive this API -------------------------------------------
+
+
+EVIL = {"Origin": "https://evil.example"}
+
+
+def test_a_post_from_another_web_page_is_refused_and_changes_nothing(client, store):
+    assert client.post("/api/cases/demo-needs-review/reject", json={}, headers=EVIL).status_code == 403
+    assert client.post("/api/cases/demo-open-issues/approve", json={"acknowledge_open_issues": True},
+                       headers=EVIL).status_code == 403
+    assert client.post("/api/cases/demo-open-issues/approve", json={}, headers={"Origin": "null"}).status_code == 403
+    assert store.load("demo-needs-review").status == "waiting_approval"
+    assert store.load("demo-open-issues").status == "waiting_approval"
+
+
+def test_the_local_dev_origin_may_post(client):
+    ok = client.post("/api/cases/demo-passed/approve", json={}, headers={"Origin": "http://localhost:5173"})
+    assert ok.status_code == 200
+
+
+def test_a_post_without_a_json_content_type_is_refused(client, store):
+    # the cross-site trick that skips CORS: a JSON body sent with no Content-Type, or as text/plain
+    body = json.dumps({"acknowledge_open_issues": True}).encode()
+    assert client.post("/api/cases/demo-open-issues/approve", content=body).status_code == 415
+    assert client.post("/api/cases/demo-open-issues/approve", content=body,
+                       headers={"Content-Type": "text/plain"}).status_code == 415
+    assert client.post("/api/cases/demo-needs-review/reject").status_code == 415  # even with no body
+    assert store.load("demo-open-issues").status == "waiting_approval"
+    assert store.load("demo-needs-review").status == "waiting_approval"
+
+
+def test_a_request_for_another_host_name_is_refused(store):
+    app = create_app(store)
+    rebound = TestClient(app, base_url="http://evil.example:8000", raise_server_exceptions=False)
+    assert rebound.get("/api/cases").status_code == 400
+    assert rebound.post("/api/cases/demo-passed/approve", json={}).status_code == 400
+    assert local_client(app).get("/api/cases").status_code == 200
+    assert TestClient(app, base_url="http://localhost:8000").get("/api/health").status_code == 200
+
+
+# --- no ghost cases, per-case locking, optional approve body --------------------------------------------------------------
+
+
+def test_a_failed_change_demand_leaves_no_ghost_case_and_can_be_retried(store):
+    def broken(case_id, snapshot_id):
+        raise RuntimeError("no API key")
+
+    c = local_client(create_app(store, broken, HintingRulesChecker()))
+    failed = c.post("/api/cases/demo-demand-change/change-demand", json={**CHANGE, "new_case_id": "retry-me"})
+    assert failed.status_code == 500 and "Nothing was changed" in failed.json()["message"]
+    assert not store.exists("retry-me") and store.load("demo-demand-change").status == "waiting_approval"
+    fixed = local_client(create_app(store, scripted, HintingRulesChecker()))
+    assert fixed.post("/api/cases/demo-demand-change/change-demand", json={**CHANGE, "new_case_id": "retry-me"}).status_code == 200
+
+
+def test_a_failure_while_saving_the_finished_case_leaves_no_ghost_case_either(store, monkeypatch):
+    real_save = CaseStore.save
+
+    def flaky_save(self, record):
+        if record.case_id == "ghost" and record.status != "building":
+            raise OSError("disk full")  # the first save (building) worked, the final one fails
+        return real_save(self, record)
+
+    monkeypatch.setattr(CaseStore, "save", flaky_save)
+    c = local_client(create_app(store, scripted, HintingRulesChecker()))
+    failed = c.post("/api/cases/demo-demand-change/change-demand", json={**CHANGE, "new_case_id": "ghost"})
+    assert failed.status_code == 500 and "disk full" not in failed.text
+    assert not store.exists("ghost") and store.load("demo-demand-change").status == "waiting_approval"
+
+
+def test_discard_building_only_removes_a_case_that_never_finished(tmp_path):
+    s = CaseStore(tmp_path)
+    serve.seed_samples(s)
+    assert s.discard_building("demo-passed") is False and s.exists("demo-passed")  # waiting_approval: untouched
+    assert s.discard_building("no-such-case") is False
+
+
+def test_a_busy_case_refuses_a_second_request_at_once_but_other_cases_are_not_blocked(store):
+    started, release = threading.Event(), threading.Event()
+
+    def slow(case_id, snapshot_id):
+        started.set()
+        release.wait(10)  # holds the case, like a live Scheduler run
+        return ScriptedScheduler([REFERENCE], case_id=case_id, snapshot_id=snapshot_id)
+
+    c = local_client(create_app(store, slow, HintingRulesChecker()))
+    first = {}
+    worker = threading.Thread(target=lambda: first.update(
+        r=c.post("/api/cases/demo-demand-change/change-demand", json={**CHANGE, "new_case_id": "slow-child"})))
+    worker.start()
+    assert started.wait(10)
+    busy = c.post("/api/cases/demo-demand-change/reject", json={})  # the same case: refused at once, not queued
+    assert busy.status_code == 409 and "already changing this case" in busy.json()["message"]
+    assert c.post("/api/cases/demo-passed/approve", json={}).status_code == 200  # a different case is not blocked
+    release.set()
+    worker.join(30)
+    assert first["r"].status_code == 200
+
+
+def test_approve_needs_no_body_at_all(client):
+    done = client.post("/api/cases/demo-passed/approve", headers={"Content-Type": "application/json"})
+    assert done.status_code == 200 and done.json()["decision_details"]["acknowledged_open_issues"] is False
+    refused = client.post("/api/cases/demo-open-issues/approve", headers={"Content-Type": "application/json"})
+    assert refused.status_code == 409 and "open issues" in refused.json()["message"]
