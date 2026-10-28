@@ -19,6 +19,9 @@ class DataSource(Protocol):
     def get_availability(self, snapshot: Snapshot) -> List[Dict[str, Any]]:
         """Rows of nurse_id, date, shift, available, reason for the snapshot's roster and week."""
 
+    def get_callouts(self, snapshot: Snapshot) -> List[Dict[str, Any]]:
+        """Call-outs reported for the snapshot's roster and week: nurse_id, date, shift, reported_at."""
+
 
 class MockSource:
     def __init__(self, data_dir: Path = DEFAULT_DATA):
@@ -39,3 +42,13 @@ class MockSource:
         ids = {n.nurse_id for n in snapshot.roster}
         return [{k: r[k] for k in ("nurse_id", "date", "shift", "available", "reason")}
                 for r in self._read("availability.json") if r["nurse_id"] in ids and r["date"] in days]
+
+    def get_callouts(self, snapshot: Snapshot) -> List[Dict[str, Any]]:
+        """The folder's callouts.json, if it has one (the base mock week has none). Roster and week only."""
+        from app.orchestrator import week_dates
+        path = self.data_dir / "callouts.json"
+        if not path.exists():
+            return []
+        days = set(week_dates(snapshot.week_start))
+        ids = {n.nurse_id for n in snapshot.roster}
+        return [r for r in json.loads(path.read_text()) if r["nurse_id"] in ids and r["date"] in days]
