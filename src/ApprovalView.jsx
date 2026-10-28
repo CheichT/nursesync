@@ -283,28 +283,6 @@ export default function ApprovalView({ showToast }) {
     }
   };
 
-  /** After a reload, pick up a weekly run that is still going (run id is the case id). */
-  const resumeRunIfAny = async () => {
-    try {
-      const data = await listCases();
-      for (const c of (data.cases || []).filter((x) => x.status === "building")) {
-        try {
-          const status = await getRun(c.case_id);
-          if (status.state === "running") {
-            setRunStatus(status);
-            setBusy(true);
-            startRunPoll(status.run_id);
-            return;
-          }
-        } catch {
-          /* not a weekly run (or the server restarted): ignore */
-        }
-      }
-    } catch {
-      /* best effort */
-    }
-  };
-
   const boot = async () => {
     stopRunPoll();
     setRunStatus(null);
@@ -330,17 +308,18 @@ export default function ApprovalView({ showToast }) {
         : "Connected to local case API. Live agents off — approve/reject work; weekly run and change demand need NURSESYNC_LIVE=1."
     );
     await refreshUsage();
-    loadNames();
     try {
       await refreshCaseList();
     } catch (err) {
       setSource("samples");
       setApiNote(`API health ok but listing cases failed: ${err.message}`);
       await loadSample("passed");
-      return;
     }
-    await resumeRunIfAny();
   };
+
+  useEffect(() => {
+    loadNames();
+  }, []);
 
   useEffect(() => {
     boot();
@@ -440,9 +419,8 @@ export default function ApprovalView({ showToast }) {
   };
 
   const runInProgress = runStatus?.state === "running";
-  const outOfRuns = Boolean(usage?.capped && usage.remaining === 0);
   const startRunDisabled =
-    busy || runInProgress || outOfRuns || source !== "api" || !runUnit.trim() || !runWeekStart.trim();
+    busy || runInProgress || source !== "api" || !runUnit.trim() || !runWeekStart.trim();
 
   const openIssues = record ? hasOpenIssues(record) : false;
   const draft = record?.final_draft;
@@ -619,8 +597,9 @@ export default function ApprovalView({ showToast }) {
     busy || !record || !canTryApprove(record) || (openIssues && !ackOpenIssues);
   const rejectDisabled = busy || !record || !canReject(record);
   const demandDisabled = busy || !record || !canChangeDemand(record);
+  const noRunsLeft = Boolean(usage?.capped && usage.remaining === 0);
   const callOutDisabled =
-    busy || source !== "api" || !liveAgents || outOfRuns || !record || !draft || !canChangeDemand(record);
+    busy || source !== "api" || !liveAgents || noRunsLeft || !record || !draft || !canChangeDemand(record);
 
   return (
     <div className="panel approval-panel">
@@ -738,9 +717,7 @@ export default function ApprovalView({ showToast }) {
                 ? "Connect to the local API first"
                 : !liveAgents
                   ? "Server needs NURSESYNC_LIVE=1"
-                  : outOfRuns
-                    ? "No paid runs left today"
-                    : runInProgress
+                  : runInProgress
                     ? "A run is already in progress"
                     : "Start weekly run"
             }
@@ -755,12 +732,6 @@ export default function ApprovalView({ showToast }) {
                   usage.date ? ` · ${usage.date}` : ""
                 }).`
               : "No daily paid-ops cap on this server."}
-          </p>
-        )}
-        {outOfRuns && (
-          <p className="approval-error" role="note">
-            No paid runs left today, so Start weekly run is off. Try again tomorrow, or raise the cap and restart the
-            API.
           </p>
         )}
         {source === "api" && !liveAgents && (
@@ -1069,7 +1040,7 @@ export default function ApprovalView({ showToast }) {
                 title={
                   source !== "api" || !liveAgents
                     ? "Needs the API with live agents (NURSESYNC_LIVE=1)"
-                    : outOfRuns
+                    : noRunsLeft
                       ? "No paid runs left today"
                       : "Report a nurse call-out"
                 }
