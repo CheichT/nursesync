@@ -13,7 +13,15 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from app.contract.case_record import CaseRecord, DecisionDetails, DemandChange, DemandResult
 from app.contract.models import DemandRow, Nurse, RulesConfig
 from app.harness.phase1 import RulesChecker, Scheduler
-from app.orchestrator import make_snapshot, schedule_case, snapshot_id_for, status_counts
+from app.case_store import CaseStore
+from app.orchestrator import (
+    UNKNOWN_NURSE_NOTE,
+    building_record,
+    make_snapshot,
+    schedule_case,
+    snapshot_id_for,
+    status_counts,
+)
 
 SchedulerFactory = Callable[[str, str], Scheduler]  # (case_id, snapshot_id) -> a Scheduler built with both
 
@@ -73,11 +81,13 @@ def mark_out_of_date(record: CaseRecord, newer_case_id: str) -> CaseRecord:
 
 def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: str,
                   make_scheduler: SchedulerFactory, rules_checker: RulesChecker, roster: List[Nurse],
-                  rules: RulesConfig, now: Optional[Callable[[], datetime]] = None) -> Tuple[CaseRecord, CaseRecord]:
+                  rules: RulesConfig, now: Optional[Callable[[], datetime]] = None,
+                  store: Optional[CaseStore] = None) -> Tuple[CaseRecord, CaseRecord]:
     """Set nurses_needed on one or more rows, then rerun the Scheduler loop only (availability is kept).
 
     Returns (old_case, new_case). The new case is a child of the old one with its own snapshot; the old case
     becomes out_of_date with the decision recorded. Rows the manager sets become `ok` with a plain note.
+    With a `store`, the new case is saved as building, then finished, then the old case is saved as out_of_date.
     """
     _check_open(record)
     if not changes:
@@ -106,10 +116,16 @@ def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: 
     demand = DemandResult(rows=new_rows, counts=status_counts(new_rows))
 
     snapshot = make_snapshot(roster, rules, record.unit, record.week_start, snapshot_id_for(new_case_id), now)
+    if store is not None:
+        store.save(building_record(snapshot, new_case_id, record.case_id))
+    kept = [n for n in record.needs_manual_review if n.note == UNKNOWN_NURSE_NOTE]
     child = schedule_case(make_scheduler(new_case_id, snapshot.snapshot_id), rules_checker, snapshot, demand,
-                          record.availability_result.model_copy(deep=True), new_case_id, record.case_id)
+                          record.availability_result.model_copy(deep=True), new_case_id, record.case_id,
+                          extra_review=kept, store=store)
     details = DecisionDetails(action="change_demand", demand_changes=list(changes), new_case_id=new_case_id)
     old = record.model_copy(update={"status": "out_of_date", "newer_case_id": new_case_id,
                                     "decision_time": _stamp(now), "decision_details": details})
+    if store is not None:
+        store.save(old)
     return old, child
 

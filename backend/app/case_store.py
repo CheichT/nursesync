@@ -11,7 +11,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 
 from app.contract.case_record import CaseRecord
 
@@ -58,6 +58,13 @@ class CaseStore:
         tmp = path.with_suffix(".json.tmp")
         tmp.write_text(record.model_dump_json(indent=2))
         os.replace(tmp, path)  # all or nothing: a crash never leaves half a file
+
+    def update(self, case_id: str, change: Callable[[CaseRecord], CaseRecord]) -> CaseRecord:
+        """Load a case, apply a decision function (for example `approve`), save it, and return the new record.
+        Nothing is saved if the decision is refused."""
+        record = change(self.load(case_id))
+        self.save(record)
+        return record
 
     def list_ids(self) -> List[str]:
         return sorted(p.stem for p in self.folder.glob("*.json")) if self.folder.is_dir() else []
