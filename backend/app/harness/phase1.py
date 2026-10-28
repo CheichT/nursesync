@@ -140,6 +140,8 @@ class Phase1Result(BaseModel):
     unfixable: List[Unfixable]
     needs_manual_review: List[NeedsManualReview]
     rounds: List[RoundLog]
+    drafts: List[Draft] = []  # every draft that was checked, in order
+    round_violations: List[Tuple[int, List[Violation]]] = []  # (version, hard violations) for each checked draft
 
 
 def _key(v: Violation) -> Tuple[str, str, str, str]:
@@ -233,6 +235,8 @@ def run_phase1(scheduler: Scheduler, rules_checker: RulesChecker, inputs: Phase1
     previous: Optional[Draft] = None
     hints: List[Violation] = []
     best: Optional[Tuple[int, Draft, Any]] = None  # (hard violation count, draft, check result)
+    drafts: List[Draft] = []
+    round_violations: List[Tuple[int, List[Violation]]] = []
 
     for version in range(1, max_rounds + 1):
         log = RoundLog(version=version)
@@ -244,27 +248,32 @@ def run_phase1(scheduler: Scheduler, rules_checker: RulesChecker, inputs: Phase1
         if result is None:
             continue  # a failed round; the draft is not kept
         previous = draft
+        drafts.append(draft)
+        round_violations.append((version, [v for v in result.violations if v.severity == "hard"]))
         log.hard_violations = len(result.violations)
         if best is None or len(result.violations) <= best[0]:
             best = (len(result.violations), draft, result)
         if result.passed:
-            return _finish("passed", case_id, snapshot_id, logs, best)
+            return _finish("passed", case_id, snapshot_id, logs, best, drafts, round_violations)
         if version < max_rounds:
             hints = _fix_hints(rules_checker, draft, result.violations, inputs, log)
-    return _finish("stopped_after_3_rounds", case_id, snapshot_id, logs, best)
+    return _finish("stopped_after_3_rounds", case_id, snapshot_id, logs, best, drafts, round_violations)
 
 
 def _finish(outcome: str, case_id: str, snapshot_id: str, logs: List[RoundLog],
-            best: Optional[Tuple[int, Draft, Any]]) -> Phase1Result:
+            best: Optional[Tuple[int, Draft, Any]], drafts: List[Draft],
+            round_violations: List[Tuple[int, List[Violation]]]) -> Phase1Result:
     if best is None:  # no valid draft in any round
         return Phase1Result(case_id=case_id, snapshot_id=snapshot_id, outcome="stopped_after_3_rounds",
                             rounds_used=len(logs), open_violations=[], soft_tradeoffs=[], unfixable=[],
-                            needs_manual_review=[], rounds=logs)
+                            needs_manual_review=[], rounds=logs, drafts=drafts,
+                            round_violations=round_violations)
     _, draft, result = best
     return Phase1Result(
         case_id=case_id, snapshot_id=snapshot_id, outcome=outcome, rounds_used=len(logs),
         final_draft=draft, open_violations=result.violations, soft_tradeoffs=result.soft_tradeoffs,
-        unfixable=draft.unfixable, needs_manual_review=draft.needs_manual_review, rounds=logs,
+        unfixable=draft.unfixable, needs_manual_review=draft.needs_manual_review, rounds=logs, drafts=drafts,
+        round_violations=round_violations,
     )
 
 

@@ -10,7 +10,7 @@ There is no login in version one, so a decision records WHAT was decided and WHE
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from app.contract.case_record import CaseRecord, DemandChange, DemandResult, ManagerDecision
+from app.contract.case_record import CaseRecord, DecisionDetails, DemandChange, DemandResult
 from app.contract.models import DemandRow, Nurse, RulesConfig
 from app.harness.phase1 import RulesChecker, Scheduler
 from app.orchestrator import make_snapshot, schedule_case, snapshot_id_for, status_counts
@@ -27,16 +27,14 @@ def _stamp(now: Optional[Callable[[], datetime]]) -> str:
 
 
 def _check_open(record: CaseRecord) -> None:
-    if record.state == "awaiting_approval":
+    if record.status == "waiting_approval":
         return
-    if record.state == "out_of_date":
+    if record.status == "out_of_date":
         newer = f" Review case {record.newer_case_id} instead." if record.newer_case_id else ""
         raise DecisionRefused(f"This draft is out of date: a newer one exists.{newer}")
-    if record.state == "failed":
-        raise DecisionRefused("No valid draft was produced, so there is nothing to decide on. Build the week by hand.")
-    if record.state == "running":
+    if record.status == "building":
         raise DecisionRefused("This case is still running.")
-    raise DecisionRefused(f"This case is already {record.state}. A decided case cannot be changed.")
+    raise DecisionRefused(f"This case is already {record.status}. A decided case cannot be changed.")
 
 
 def has_open_issues(record: CaseRecord) -> bool:
@@ -46,26 +44,31 @@ def has_open_issues(record: CaseRecord) -> bool:
 
 def approve(record: CaseRecord, acknowledge_open_issues: bool = False,
             now: Optional[Callable[[], datetime]] = None) -> CaseRecord:
-    """Approve the draft. A draft with open issues needs `acknowledge_open_issues=True`, which is saved."""
+    """Approve the draft. A draft with open issues needs `acknowledge_open_issues=True`, which is saved.
+    A case with no valid draft (stopped for missing input, or no round gave a valid draft) cannot be approved."""
     _check_open(record)
+    if record.final_draft is None:
+        raise DecisionRefused(record.stop_reason or "No valid draft was produced, so there is nothing to approve. "
+                              "Change a demand number, or reject and build the week by hand.")
     if has_open_issues(record) and not acknowledge_open_issues:
         raise DecisionRefused("This draft still has open issues (rule violations, unfixable rows or unstaffed "
                               "shifts). Approve only after confirming you accept them.")
-    decision = ManagerDecision(action="approve", decided_at=_stamp(now),
-                               acknowledged_open_issues=has_open_issues(record))
-    return record.model_copy(update={"state": "approved", "manager_decision": decision})
+    details = DecisionDetails(action="approve", acknowledged_open_issues=has_open_issues(record))
+    return record.model_copy(update={"status": "approved", "manager_decision": "approved",
+                                     "decision_time": _stamp(now), "decision_details": details})
 
 
 def reject(record: CaseRecord, now: Optional[Callable[[], datetime]] = None) -> CaseRecord:
+    """Reject ends the case with the outcome "rejected"; the manager builds the week by hand."""
     _check_open(record)
-    decision = ManagerDecision(action="reject", decided_at=_stamp(now))
-    return record.model_copy(update={"state": "rejected", "manager_decision": decision})
+    return record.model_copy(update={"status": "rejected", "outcome": "rejected", "manager_decision": "rejected",
+                                     "decision_time": _stamp(now), "decision_details": DecisionDetails(action="reject")})
 
 
 def mark_out_of_date(record: CaseRecord, newer_case_id: str) -> CaseRecord:
     """A newer run replaced this one (for example a late call-out). Only an undecided case can be replaced."""
     _check_open(record)
-    return record.model_copy(update={"state": "out_of_date", "newer_case_id": newer_case_id})
+    return record.model_copy(update={"status": "out_of_date", "newer_case_id": newer_case_id})
 
 
 def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: str,
@@ -105,9 +108,8 @@ def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: 
     snapshot = make_snapshot(roster, rules, record.unit, record.week_start, snapshot_id_for(new_case_id), now)
     child = schedule_case(make_scheduler(new_case_id, snapshot.snapshot_id), rules_checker, snapshot, demand,
                           record.availability_result.model_copy(deep=True), new_case_id, record.case_id)
-    decision = ManagerDecision(action="change_demand", decided_at=_stamp(now), demand_changes=list(changes),
-                               new_case_id=new_case_id)
-    old = record.model_copy(update={"state": "out_of_date", "newer_case_id": new_case_id,
-                                    "manager_decision": decision})
+    details = DecisionDetails(action="change_demand", demand_changes=list(changes), new_case_id=new_case_id)
+    old = record.model_copy(update={"status": "out_of_date", "newer_case_id": new_case_id,
+                                    "decision_time": _stamp(now), "decision_details": details})
     return old, child
 

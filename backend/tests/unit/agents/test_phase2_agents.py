@@ -111,7 +111,7 @@ def test_both_live_agents_through_the_orchestrator_give_a_clean_case():
     rec = run_case(demand, availability,
                    ScriptedScheduler([Draft(**REFERENCE)], snapshot_id=snapshot_id_for("case-1")),
                    HintingRulesChecker(), inputs.roster, inputs.rules, "7W", "2026-11-02", "case-1")
-    assert (rec.state, rec.outcome) == ("awaiting_approval", "passed")
+    assert (rec.status, rec.outcome) == ("waiting_approval", "passed")
     assert rec.demand_result.counts.ok == 14 and rec.availability_result.counts.ok == 336
 
 

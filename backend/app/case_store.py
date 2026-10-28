@@ -1,8 +1,8 @@
 """Saves case records as one JSON file each. Owner: Cheich. Version 0: a folder of files, swappable later.
 
 Only these state changes are allowed on a saved case, so a decided case can never be quietly changed:
-  running -> awaiting_approval | failed
-  awaiting_approval -> approved | rejected | out_of_date
+  building -> waiting_approval
+  waiting_approval -> approved | rejected | out_of_date
 A new case can be saved in any state. Saving the same state again (no change) is refused for decided cases.
 Not safe for two people writing at the same moment: there is no real login or locking yet.
 """
@@ -18,8 +18,8 @@ from app.contract.case_record import CaseRecord
 DEFAULT_FOLDER = Path(__file__).resolve().parents[1] / "data" / "cases"
 _SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 _ALLOWED = {
-    "running": {"awaiting_approval", "failed"},
-    "awaiting_approval": {"approved", "rejected", "out_of_date"},
+    "building": {"waiting_approval"},
+    "waiting_approval": {"approved", "rejected", "out_of_date"},
 }
 
 
@@ -52,8 +52,8 @@ class CaseStore:
         path = self._path(record.case_id)
         if path.exists():
             old = self.load(record.case_id)
-            if record.state not in _ALLOWED.get(old.state, set()):
-                raise CaseStoreError(f"case {record.case_id} is {old.state} and cannot become {record.state}")
+            if record.status not in _ALLOWED.get(old.status, set()):
+                raise CaseStoreError(f"case {record.case_id} is {old.status} and cannot become {record.status}")
         self.folder.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".json.tmp")
         tmp.write_text(record.model_dump_json(indent=2))

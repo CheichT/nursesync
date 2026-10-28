@@ -44,8 +44,8 @@ def _with_open_issues():
 
 def test_approve_a_clean_draft():
     rec = approve(_case(), now=lambda: __import__("datetime").datetime(2026, 11, 1, 9, 0))
-    assert rec.state == "approved" and rec.manager_decision.action == "approve"
-    assert rec.manager_decision.decided_at == "2026-11-01T09:00:00" and not rec.manager_decision.acknowledged_open_issues
+    assert rec.status == "approved" and rec.manager_decision == "approved" and rec.decision_details.action == "approve"
+    assert rec.decision_time == "2026-11-01T09:00:00" and not rec.decision_details.acknowledged_open_issues
 
 
 def test_approving_open_issues_needs_an_explicit_acknowledgement_that_is_saved():
@@ -54,18 +54,19 @@ def test_approving_open_issues_needs_an_explicit_acknowledgement_that_is_saved()
     with pytest.raises(DecisionRefused, match="open issues"):
         approve(rec)
     done = approve(rec, acknowledge_open_issues=True)
-    assert done.state == "approved" and done.manager_decision.acknowledged_open_issues is True
+    assert done.status == "approved" and done.decision_details.acknowledged_open_issues is True
 
 
 def test_reject():
     rec = reject(_case())
-    assert (rec.state, rec.manager_decision.action) == ("rejected", "reject")
+    assert (rec.status, rec.outcome, rec.manager_decision) == ("rejected", "rejected", "rejected")
+    assert rec.decision_details.action == "reject"
 
 
 def test_the_original_record_is_never_changed_in_place():
     original = _case()
     approve(original)
-    assert original.state == "awaiting_approval" and original.manager_decision is None
+    assert original.status == "waiting_approval" and original.manager_decision is None
 
 
 def test_decided_out_of_date_and_failed_cases_refuse_every_decision():
@@ -76,10 +77,11 @@ def test_decided_out_of_date_and_failed_cases_refuse_every_decision():
     stale = mark_out_of_date(_case(), "case-2")
     with pytest.raises(DecisionRefused, match="out of date.*case-2"):
         approve(stale)
-    failed = _case(drafts=[None])
-    assert failed.state == "failed"
-    with pytest.raises(DecisionRefused, match="nothing to decide"):
-        approve(failed)
+    no_draft = _case(drafts=[None])
+    assert (no_draft.status, no_draft.final_draft) == ("waiting_approval", None)
+    with pytest.raises(DecisionRefused, match="nothing to approve"):
+        approve(no_draft)
+    assert reject(no_draft).status == "rejected"  # the manager can still reject it
 
 
 def test_change_demand_starts_a_child_case_and_retires_the_old_one():
@@ -98,10 +100,11 @@ def test_change_demand_starts_a_child_case_and_retires_the_old_one():
     inputs = load_inputs()
     retired, child = change_demand(old, change, "case-2", factory, HintingRulesChecker(), inputs.roster, inputs.rules)
     assert scheduler_args == [("case-2", "snap-case-2")]
-    assert (retired.state, retired.newer_case_id) == ("out_of_date", "case-2")
-    assert retired.manager_decision.action == "change_demand" and retired.manager_decision.new_case_id == "case-2"
+    assert (retired.status, retired.newer_case_id) == ("out_of_date", "case-2")
+    assert retired.decision_details.action == "change_demand" and retired.decision_details.new_case_id == "case-2"
+    assert retired.manager_decision is None  # a demand change is neither approved nor rejected
     assert child.parent_case_id == "case-1" and child.snapshot_id == "snap-case-2"
-    assert (child.state, child.outcome) == ("awaiting_approval", "passed")
+    assert (child.status, child.outcome) == ("waiting_approval", "passed")
     row = [r for r in child.demand_result.rows if (r.date, r.shift) == ("2026-11-02", "day")][0]
     assert (row.nurses_needed, row.status, row.note) == (4, "ok", "set by manager (was 5)")
     assert child.availability_result == old.availability_result
@@ -143,10 +146,10 @@ def test_store_round_trip_and_only_allowed_changes(tmp_path):
     store.save(rec)
     assert store.load("case-1") == rec and store.list_ids() == ["case-1"]
     store.save(approve(rec))
-    assert store.load("case-1").state == "approved"
+    assert store.load("case-1").status == "approved"
     with pytest.raises(CaseStoreError, match="cannot become"):
         store.save(reject(rec))  # a decided case on disk is never overwritten
-    assert store.load("case-1").state == "approved"
+    assert store.load("case-1").status == "approved"
 
 
 def test_store_refuses_unsafe_ids_and_unreadable_files(tmp_path):
@@ -170,4 +173,4 @@ def test_old_case_can_be_saved_as_out_of_date_after_change_demand(tmp_path):
                                    HintingRulesChecker(), inputs.roster, inputs.rules)
     store.save(retired)
     store.save(child)
-    assert store.load("case-1").state == "out_of_date" and store.load("case-2").parent_case_id == "case-1"
+    assert store.load("case-1").status == "out_of_date" and store.load("case-2").parent_case_id == "case-1"
