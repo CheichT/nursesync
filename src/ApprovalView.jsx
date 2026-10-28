@@ -315,29 +315,17 @@ export default function ApprovalView({ showToast }) {
     async (cases) => {
       const building = (cases || []).find((c) => c.status === "building");
       if (!building) return;
-      setBusy(true);
-      setRunError("");
-      const placeholder = {
-        run_id: building.case_id,
-        case_id: building.case_id,
-        state: "running",
-        started_at: building.start_time || "",
-        finished_at: null,
-        outcome: null,
-        message: "A weekly run is in progress. Waiting for it to finish…",
-      };
-      setRunStatus(placeholder);
       try {
         const status = await getRun(building.case_id);
+        // Only a weekly run this server still knows about is a run. A call-out or demand change that is still
+        // building (or a record left by a restart) has no run, so no notice is shown and the button stays usable.
+        setBusy(true);
+        setRunError("");
         setRunStatus(status);
         if (status.state === "running") startRunPoll(status.run_id);
         else if (status.state === "done" || status.state === "failed") await onRunFinished(status);
-      } catch (err) {
-        // Server may have forgotten the run id after a restart; keep the notice from the building case.
-        setRunStatus({
-          ...placeholder,
-          message: err.message || placeholder.message,
-        });
+      } catch {
+        /* no run for this case: leave the screen as it is */
       }
     },
     [onRunFinished, startRunPoll]
@@ -412,7 +400,11 @@ export default function ApprovalView({ showToast }) {
       setRunError("The daily limit of paid operations is used up.");
       return;
     }
-    const confirmed = window.confirm("This runs the live agents and costs real money. Start?");
+    const left =
+      usage?.capped && usage.remaining != null ? ` ${usage.remaining} of ${usage.max_per_day} paid runs left today.` : "";
+    const confirmed = window.confirm(
+      `Start a weekly run for unit ${unit}, week of ${week}? This runs the live agents, costs about $0.50–$1.50, and can take a few minutes.${left}`
+    );
     if (!confirmed) return;
     setBusy(true);
     setRunStatus(null);
