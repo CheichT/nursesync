@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Calendar, AlertTriangle, Bell, CheckCircle, XCircle, Repeat,
-  Clock, User, Shield, Plus, LogOut, Trash2, ChevronRight, Send, Sun, Moon, Pencil
+  Clock, User, Shield, Plus, LogOut, Trash2, ChevronRight, Send, Sun, Moon, Pencil, ClipboardCheck
 } from "lucide-react";
+import ApprovalView from "./ApprovalView";
 
 const STORAGE_KEY = "scheduler-data";
 const REASONS = ["Sick", "Appointment", "Family emergency", "Running late", "Other"];
@@ -302,6 +303,7 @@ const EMP_TABS = [
 const ADMIN_TABS = [
   { key: "daily", label: "Daily Breakdown", icon: <Clock size={15} /> },
   { key: "builder", label: "Schedule Builder", icon: <Calendar size={15} /> },
+  { key: "approve", label: "Approve AI draft", icon: <ClipboardCheck size={15} /> },
   { key: "team", label: "Team Availability", icon: <User size={15} /> },
   { key: "swapapprovals", label: "Swap Approvals", icon: <Repeat size={15} /> },
   { key: "leaveapprovals", label: "Leave Requests", icon: <Send size={15} /> },
@@ -789,6 +791,7 @@ function NotificationsTab({ data, persist, audience }) {
 function AdminPanels({ tab, data, persist, notify, showToast }) {
   if (tab === "daily") return <DailyBreakdown data={data} />;
   if (tab === "builder") return <ScheduleBuilder data={data} persist={persist} notify={notify} showToast={showToast} />;
+  if (tab === "approve") return <ApprovalView showToast={showToast} />;
   if (tab === "team") return <TeamAvailability data={data} />;
   if (tab === "swapapprovals") return <SwapApprovals data={data} persist={persist} notify={notify} showToast={showToast} />;
   if (tab === "leaveapprovals") return <LeaveApprovals data={data} persist={persist} notify={notify} showToast={showToast} />;
@@ -1045,12 +1048,27 @@ function LeaveApprovals({ data, persist, notify, showToast }) {
 }
 
 function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-head">
           <h3>{title}</h3>
-          <button className="icon-btn" onClick={onClose}><XCircle size={18} /></button>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <XCircle size={18} />
+          </button>
         </div>
         <div className="modal-body">{children}</div>
       </div>
@@ -1137,7 +1155,28 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .badge { background: var(--brick); color:white; font-size:0.65rem; padding: 1px 6px; border-radius: 10px; margin-left: 2px; }
 
 .content { max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; }
+.content:has(.approval-panel) { max-width: 980px; }
 .panel-head { display:flex; justify-content:space-between; align-items:center; }
+.approval-sample { display:flex; flex-direction:column; gap:4px; font-size:0.8rem; font-weight:600; min-width: 220px; }
+.approval-meta-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom: 10px; }
+.approval-dl { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; margin: 0; }
+.approval-dl dt { font-size: 0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#6B7268; }
+.approval-dl dd { margin: 2px 0 0; font-size: 0.88rem; }
+.approval-dl code { font-family:'IBM Plex Mono', monospace; font-size: 0.78rem; }
+.approval-banner { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--brick-bg); border: 1px solid var(--brick); color: var(--ink); font-size: 0.88rem; }
+.approval-banner.soft { background: var(--indigo-bg); border-color: var(--indigo); }
+.approval-list { margin: 0; padding-left: 1.1rem; display:flex; flex-direction:column; gap: 6px; font-size: 0.88rem; }
+.approval-grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.approval-grid { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 640px; }
+.approval-grid th, .approval-grid td { border: 1px solid var(--line); padding: 8px 6px; vertical-align: top; text-align: left; }
+.approval-grid th { background: var(--paper); font-weight: 600; }
+.approval-nurses { font-family:'IBM Plex Mono', monospace; font-size: 0.72rem; word-break: break-word; }
+.approval-gap-tag { margin-top: 4px; font-size: 0.7rem; font-weight: 600; color: var(--brick); }
+.approval-ack { display:flex; align-items:flex-start; gap: 8px; font-size: 0.88rem; font-weight: 500; }
+.approval-ack input { width: auto; margin-top: 3px; }
+.approval-error { color: var(--brick); font-size: 0.88rem; margin: 0; }
+.approval-modal { max-width: 440px; }
+.approval-block { margin-bottom: 10px; }
 
 .card { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
 .form-card { display:flex; flex-direction:column; gap: 12px; }
