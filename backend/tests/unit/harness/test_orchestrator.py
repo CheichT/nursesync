@@ -137,17 +137,26 @@ def _leave_rows():
     return json.loads((Path(DEFAULT_DATA) / "leave.json").read_text())
 
 
-def test_available_on_an_approved_leave_day_is_needs_review():
+def test_available_on_an_approved_leave_day_is_set_to_unavailable_and_flagged():
     rows = _raw("availability.json")  # mock leave: N003 approved PTO on 2026-11-04; the agent says available
     for r in rows:
         if r["nurse_id"] == "N003" and r["date"] == "2026-11-04":
             r.update(available=True, reason="none")
     rec = _run(availability=rows, leave=_leave_rows())
     flagged = [r for r in rec.availability_result.rows if r.status == "needs_review"]
-    assert flagged and all("approved" in r.note and "leave" in r.note for r in flagged)
+    assert flagged and all("approved" in r.note and "leave" in r.note and "set to unavailable" in r.note for r in flagged)
     n003 = [r for r in flagged if r.nurse_id == "N003"]
     assert {(r.date, r.shift) for r in n003} == {("2026-11-04", "day"), ("2026-11-04", "night")}
-    assert all(r.available is True for r in n003)  # the value is kept
+    assert all((r.available, r.reason) == (False, "approved_time_off") for r in n003)  # code overrides the agent
+
+
+def test_a_nurse_on_approved_leave_can_no_longer_be_booked_even_if_the_agent_said_available():
+    leave = [{"employeeId": "N006", "start": "2026-11-04", "end": "2026-11-04", "type": "pto", "status": "approved"}]
+    rec = _run(leave=leave)  # the reference draft has N006 on 2026-11-04 day; the mock agent says N006 is available
+    first = [v for vv in rec.violations if vv.version == 1 for v in vv.violations]
+    assert ("availability", "N006", "2026-11-04", "day") in [(v.rule, v.nurse_id, v.date, v.shift) for v in first]
+    assert "approved time off" in [v.found for v in first if v.rule == "availability"][0]
+    assert rec.outcome == "stopped_after_3_rounds"  # the scripted Scheduler keeps booking N006, so it is not "passing"
 
 
 def test_pending_denied_and_broken_leave_is_ignored():
