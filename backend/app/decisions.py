@@ -15,7 +15,6 @@ from app.contract.models import DemandRow, Nurse, RulesConfig
 from app.harness.phase1 import RulesChecker, Scheduler
 from app.case_store import CaseStore
 from app.orchestrator import (
-    UNKNOWN_NURSE_NOTE,
     building_record,
     make_snapshot,
     schedule_case,
@@ -119,11 +118,15 @@ def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: 
     scheduler = make_scheduler(new_case_id, snapshot.snapshot_id)  # may fail (for example no API key): do it before saving
     if store is not None:
         store.save(building_record(snapshot, new_case_id, record.case_id))
-    kept = [n for n in record.needs_manual_review if n.note == UNKNOWN_NURSE_NOTE]
+    # the child reuses the earlier inputs, so it inherits their review items and notes, except about a day the manager
+    # just gave a number for
+    changed = [(c.date, c.shift) for c in changes]
+    kept = [n for n in record.input_review
+            if not (n.item_type == "demand_day" and any(d in n.id and sh in n.id for d, sh in changed))]
     try:
         child = schedule_case(scheduler, rules_checker, snapshot, demand,
                               record.availability_result.model_copy(deep=True), new_case_id, record.case_id,
-                              extra_review=kept, store=store)
+                              extra_review=kept, unusual=list(record.unusual), store=store)
     except BaseException:
         if store is not None:
             store.discard_building(new_case_id)  # no ghost case that can never be decided

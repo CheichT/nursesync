@@ -55,7 +55,7 @@ def availability_reply():
 def test_demand_agent_calls_its_tool_then_returns_rows_without_notes():
     client = FakeClient([[tool_use("t1", "get_demand")], [text(demand_reply())]])
     agent = AnthropicDemandAgent(client=client, source=MockSource(MOCK))
-    rows = agent.run(snapshot())
+    rows = agent.run(snapshot()).rows
     assert len(rows) == 14 and all("note" not in r and "flag" not in r for r in rows)
     tool_result = client.requests[1]["messages"][-1]["content"][0]
     assert tool_result["tool_use_id"] == "t1" and "nurses_needed" not in tool_result["content"]  # counts only
@@ -91,7 +91,7 @@ def test_a_failing_data_source_is_reported_to_the_agent_not_hidden():
 
 def test_availability_agent_sends_the_roster_and_returns_rows():
     client = FakeClient([[tool_use("t1", "get_availability")], [text(availability_reply())]])
-    rows = AnthropicAvailabilityAgent(client=client, source=MockSource(MOCK)).run(snapshot())
+    rows = AnthropicAvailabilityAgent(client=client, source=MockSource(MOCK)).run(snapshot()).rows
     assert len(rows) == 336
     sent = json.loads(client.requests[0]["messages"][0]["content"])
     assert len(sent["roster"]) == 24 and "Availability agent" in client.requests[0]["system"]

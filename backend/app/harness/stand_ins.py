@@ -91,15 +91,20 @@ DEMOS: Dict[str, Callable[[Draft], Tuple[ScriptedScheduler, HintingRulesChecker]
 
 
 class ScriptedDemandAgent:
-    """Returns fixed demand rows (a list of plain dicts). Pass an Exception to make it fail."""
+    """Returns fixed demand rows (a list of plain dicts). Pass an Exception to make it fail. With `unusual` or
+    `review` it returns an AgentOutput that carries those advisory extras too."""
 
-    def __init__(self, rows: Any):
-        self.rows = rows
+    def __init__(self, rows: Any, unusual: Any = None, review: Any = None):
+        self.rows, self.unusual, self.review = rows, unusual, review
 
     def run(self, snapshot: Any) -> Any:
         if isinstance(self.rows, Exception):
             raise self.rows
-        return [dict(r) for r in self.rows]
+        rows = [dict(r) for r in self.rows]
+        if self.unusual is None and self.review is None:
+            return rows
+        from app.agent_output import AgentOutput
+        return AgentOutput(rows=rows, unusual=list(self.unusual or []), needs_manual_review=list(self.review or []))
 
 
 class ScriptedAvailabilityAgent(ScriptedDemandAgent):

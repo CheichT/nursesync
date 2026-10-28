@@ -35,10 +35,12 @@ def _scheduler(drafts: List[Draft], case_id: str) -> ScriptedScheduler:
 
 
 def _run(case_id: str, demand: Optional[List[dict]] = None, availability: Optional[List[dict]] = None,
-         drafts: Optional[List[Draft]] = None) -> CaseRecord:
+         drafts: Optional[List[Draft]] = None, unusual: Optional[List[str]] = None,
+         demand_review: Optional[List[dict]] = None, availability_review: Optional[List[dict]] = None) -> CaseRecord:
     inputs = load_inputs()
-    return run_case(ScriptedDemandAgent(demand if demand is not None else _raw("demand.json")),
-                    ScriptedAvailabilityAgent(availability if availability is not None else _raw("availability.json")),
+    return run_case(ScriptedDemandAgent(demand if demand is not None else _raw("demand.json"), unusual, demand_review),
+                    ScriptedAvailabilityAgent(availability if availability is not None else _raw("availability.json"),
+                                              None, availability_review),
                     _scheduler(drafts or [REFERENCE], case_id), HintingRulesChecker(), inputs.roster, inputs.rules,
                     "7W", WEEK, case_id, now=NOW)
 
@@ -62,7 +64,12 @@ def build() -> Dict[str, CaseRecord]:
     demand[9]["flag"] = "Census may rise on Friday night."  # the agent flagged doubt
     availability = _raw("availability.json") + [
         {"nurse_id": "N999", "date": WEEK, "shift": "day", "available": True, "reason": "none"}]  # not on the roster
-    cases["needs_review"] = _run("demo-needs-review", demand, availability)
+    cases["needs_review"] = _run(
+        "demo-needs-review", demand, availability,
+        unusual=["Friday night has the highest patient count of the week (21).",
+                 "Wednesday night is far below the other nights: check the patient count."],
+        demand_review=[{"item_type": "demand_day", "id": "2026-11-06 night", "note": "Census may rise; confirm with the unit."}],
+        availability_review=[{"item_type": "nurse", "id": "N010", "note": "Availability data was partial for this nurse."}])
 
     # three rounds, and the draft still breaks rules: the best draft with its open issues
     gap_draft = REFERENCE.model_copy(update={
