@@ -54,10 +54,15 @@ def test_prompts_name_their_owner_and_say_the_prd_wins(prompt):
     assert "If this prompt and the PRD disagree, the PRD wins" in text
 
 
-@pytest.mark.parametrize("prompt", [SCHEDULER, RULES_CHECKER], ids=["scheduler", "rules_checker"])
-def test_prompts_still_flag_the_one_open_question_about_the_message_layout(prompt):
-    assert plain(prompt).count("OPEN QUESTION") == 1
-    assert "how the harness packs these fields" in plain(prompt)
+def test_rules_checker_still_flags_the_open_question_about_the_message_layout():
+    # Scheduler wrapper is wired (weekly + call_out). Rules Checker still notes packing.
+    assert plain(RULES_CHECKER).count("OPEN QUESTION") == 1
+    assert "how the harness packs these fields" in plain(RULES_CHECKER)
+
+
+def test_scheduler_no_longer_flags_message_layout_as_open():
+    assert "OPEN QUESTION" not in plain(SCHEDULER)
+    assert "Anthropic wrapper sends these fields as one JSON user message" in plain(SCHEDULER)
 
 
 @pytest.mark.parametrize("prompt", [SCHEDULER, RULES_CHECKER], ids=["scheduler", "rules_checker"])
@@ -188,3 +193,17 @@ def test_scheduler_is_told_it_never_sees_soft_tradeoffs():
 def test_the_prompts_agree_with_each_other_about_who_gets_which_violations():
     assert "hard `violations`" in SCHEDULER  # the Scheduler gets hard violations with hints
     assert "the hard violations that `check_rules` found" in RULES_CHECKER  # the Rules Checker gets the same list
+
+
+def test_scheduler_covers_call_out_runs():
+    text = plain(SCHEDULER)
+    for phrase in (
+        '"mode": "call_out"',
+        "affected_shifts",
+        "locked_assignments",
+        "earlier_assignments",
+        "Never invent a nurse",
+        "whole week",
+    ):
+        assert phrase in text, phrase
+    assert "On a call-out run, one row per replacement" in SCHEDULER
