@@ -12,7 +12,7 @@ described as secure. Real sign-in comes later.
   - a POST that carries an Origin header from anywhere but the local dev origin is refused (stops cross-site posts),
   - every POST must say Content-Type: application/json (a cross-site page cannot send that without a preflight).
 
-Change demand reruns the live Scheduler (cents to about a dollar, and it can take minutes), so it only works when
+Change demand and call-outs rerun the live Scheduler (cents to about a dollar, and it can take minutes), so it only works when
 the server was started with live agents enabled. Otherwise it answers 503 before touching anything.
 """
 
@@ -31,7 +31,8 @@ from pydantic import Field
 
 from app.case_store import CaseNotFound, CaseStore, CaseStoreError, InvalidCaseId
 from app.contract.case_record import CaseRecord, DemandChange
-from app.contract.models import Form
+from app.callouts import check_call_outs, run_call_out
+from app.contract.models import Callout, Form, ShiftKind
 from app.decisions import DecisionRefused, SchedulerFactory, approve, change_demand, check_demand_changes, reject
 from app.harness.phase1 import RulesChecker, load_inputs
 from app.runs import RunManager, RunRefused, RunStatus
@@ -49,6 +50,18 @@ class ApproveBody(Form):
 
 class ChangeDemandBody(Form):
     changes: List[DemandChange] = Field(min_length=1)
+    new_case_id: Optional[str] = None
+
+
+class CallOutItem(Form):
+    nurse_id: str
+    date: str
+    shift: ShiftKind
+    reported_at: Optional[str] = None  # ISO date and time; the server uses "now" when left out
+
+
+class CallOutBody(Form):
+    call_outs: List[CallOutItem] = Field(min_length=1, max_length=20)
     new_case_id: Optional[str] = None
 
 
@@ -226,6 +239,27 @@ def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] =
             inputs = load_roster_and_rules()
             old, child = change_demand(record, body.changes, new_id, scheduler_factory, rules_checker,
                                        inputs.roster, inputs.rules, store=store)
+            return ChangeDemandResult(old=old, child=child)
+
+    @app.post("/api/cases/{case_id}/call-out", response_model=ChangeDemandResult)
+    def call_out_case(case_id: str, body: CallOutBody) -> Any:
+        if not live:
+            return _message("Live agents are not enabled on this server, so a call-out cannot rerun the "
+                            "Scheduler. Start the server with NURSESYNC_LIVE=1.", 503)
+        now = datetime.now().isoformat(timespec="seconds")
+        callouts = [Callout(nurse_id=c.nurse_id, date=c.date, shift=c.shift, reported_at=c.reported_at or now)
+                    for c in body.call_outs]
+        with one_at_a_time(case_id):
+            record = store.load(case_id)
+            new_id = body.new_case_id or f"case-{datetime.now():%Y%m%d%H%M%S}-{secrets.token_hex(3)}"
+            if store.exists(new_id):
+                raise DecisionRefused(f"A case with id {new_id} already exists.")
+            inputs = load_roster_and_rules()
+            check_call_outs(record, callouts, inputs.roster)  # refuse a bad request BEFORE it spends anything
+            if usage is not None:
+                usage.try_spend("call_out", case_id)
+            old, child = run_call_out(record, callouts, new_id, scheduler_factory, rules_checker,
+                                      inputs.roster, inputs.rules, store=store)
             return ChangeDemandResult(old=old, child=child)
 
     return app

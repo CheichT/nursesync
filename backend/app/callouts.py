@@ -33,12 +33,9 @@ from app.orchestrator import (
 SHIFT_ORDER = {"day": 0, "night": 1}
 
 
-def run_call_out(parent: CaseRecord, callouts: List[Callout], new_case_id: str, make_scheduler: SchedulerFactory,
-                 rules_checker: RulesChecker, roster: List[Nurse], rules: RulesConfig,
-                 now: Optional[Callable[[], datetime]] = None,
-                 store: Optional[CaseStore] = None) -> Tuple[CaseRecord, CaseRecord]:
-    """Returns (old_case, new_case). The old case is out_of_date. Raises DecisionRefused, with a message safe to
-    show the manager, if the call-out cannot be applied. Nothing is saved when it raises."""
+def check_call_outs(parent: CaseRecord, callouts: List[Callout], roster: List[Nurse]) -> List[Callout]:
+    """Refuse a call-out request that cannot be applied, BEFORE anything is spent. Returns the call-outs without
+    repeats. Raises DecisionRefused with a message safe to show the manager."""
     _check_open(parent)
     if parent.final_draft is None:
         raise DecisionRefused("This case has no draft to update, so a call-out cannot be applied to it.")
@@ -57,6 +54,16 @@ def run_call_out(parent: CaseRecord, callouts: List[Callout], new_case_id: str, 
         if (c.nurse_id, c.date, c.shift) not in seen:
             seen.add((c.nurse_id, c.date, c.shift))
             unique.append(c)
+    return unique
+
+
+def run_call_out(parent: CaseRecord, callouts: List[Callout], new_case_id: str, make_scheduler: SchedulerFactory,
+                 rules_checker: RulesChecker, roster: List[Nurse], rules: RulesConfig,
+                 now: Optional[Callable[[], datetime]] = None,
+                 store: Optional[CaseStore] = None) -> Tuple[CaseRecord, CaseRecord]:
+    """Returns (old_case, new_case). The old case is out_of_date. Raises DecisionRefused, with a message safe to
+    show the manager, if the call-out cannot be applied. Nothing is saved when it raises."""
+    unique = check_call_outs(parent, callouts, roster)
 
     affected_keys = sorted({(c.date, c.shift) for c in unique}, key=lambda k: (k[0], SHIFT_ORDER[k[1]]))
     affected = [ShiftRef(date=d, shift=s) for d, s in affected_keys]

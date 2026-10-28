@@ -44,6 +44,7 @@ Through the Vite proxy these all hold as long as you open the app at `localhost:
 | `GET /api/runs/{run_id}` | | `{ state: "running" \| "done" \| "failed", outcome, message, finished_at }`. Kept only while the server runs; the case itself is saved. |
 | `GET /api/usage` | | `{ capped, used_today, max_per_day, remaining, date }`: how many paid operations are left today. |
 | `POST /api/cases/{case_id}/change-demand` | `{ "changes": [{ "unit", "date", "shift", "nurses_needed" }], "new_case_id": null }` | `{ "old": CaseRecord, "child": CaseRecord }`. After this, show `child`. `new_case_id` is optional (the server makes one). |
+| `POST /api/cases/{case_id}/call-out` | `{ "call_outs": [{ "nurse_id", "date", "shift", "reported_at": null }], "new_case_id": null }` | `{ "old": CaseRecord, "child": CaseRecord }`. Only for a case still waiting for approval. Needs `NURSESYNC_LIVE=1` (else 503), counts against the daily cap (429), refusals (nurse not on roster, date outside the week, case already decided) are 409 and spend nothing. `reported_at` defaults to now. |
 
 ## New in the case record: the agents' notes
 
@@ -110,7 +111,6 @@ curl -X POST http://127.0.0.1:8000/api/cases/demo-demand-change/change-demand -H
 ## What is NOT here yet
 
 - Login or any permission checks (anyone who can reach the port can decide). Local only for now.
-- Applying a call-out through the API (it costs money; the code exists in `callouts.py`).
 - Waiting in line: a second request for a case that is busy is refused at once (409), not queued. Other cases are not blocked.
 - Roster and rules for change demand are not chosen by the case's unit yet.
 - Roster and rules for change demand come from the mock data until a real Shift Board source exists.

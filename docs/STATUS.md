@@ -79,8 +79,8 @@ locked changes. See `backend/evals/phase1/RESULTS.md`.
 ## What is left
 
 - Final full-suite vs baseline: **done 2026-10-28** (see `backend/evals/phase1/RESULTS.md` “Final suite”). Case 10 needed a re-run after transient connection errors.
-- API: apply a call-out through the API (costs money; same guards and the daily cap apply); choose roster and rules by
-  the case's unit. (Starting a weekly run and the daily cap on paid operations are done.)
+- API: choose roster and rules by the case's unit. (Starting a weekly run, the daily cap, and applying a call-out
+  through the API are done; the call-out has no button in the UI yet.)
 - Real Shift Board data in place of mock files; Availability batching for units of about 50 nurses (output is cut off
   and rows become `missing`, never guessed); wire `get_callouts` into the Availability agent for weekly runs.
 - A call-out after a case is approved (the PRD only covers one still waiting); a login.
