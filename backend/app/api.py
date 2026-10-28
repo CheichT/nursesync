@@ -32,8 +32,10 @@ from pydantic import Field
 from app.case_store import CaseNotFound, CaseStore, CaseStoreError, InvalidCaseId
 from app.contract.case_record import CaseRecord, DemandChange
 from app.contract.models import Form
-from app.decisions import DecisionRefused, SchedulerFactory, approve, change_demand, reject
+from app.decisions import DecisionRefused, SchedulerFactory, approve, change_demand, check_demand_changes, reject
 from app.harness.phase1 import RulesChecker, load_inputs
+from app.runs import RunManager, RunRefused, RunStatus
+from app.usage import SpendCapReached, UsageMeter
 
 log = logging.getLogger("nursesync.api")
 
@@ -48,6 +50,12 @@ class ApproveBody(Form):
 class ChangeDemandBody(Form):
     changes: List[DemandChange] = Field(min_length=1)
     new_case_id: Optional[str] = None
+
+
+class StartRunBody(Form):
+    unit: str
+    week_start: str
+    case_id: Optional[str] = None
 
 
 class CaseSummary(Form):
@@ -79,10 +87,12 @@ def _message(text: str, status: int) -> JSONResponse:
 def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] = None,
                rules_checker: Optional[RulesChecker] = None,
                load_roster_and_rules: Callable[[], Any] = load_inputs,
-               allowed_origins: Optional[List[str]] = None, allowed_hosts: Optional[List[str]] = None) -> FastAPI:
+               allowed_origins: Optional[List[str]] = None, allowed_hosts: Optional[List[str]] = None,
+               run_manager: Optional[RunManager] = None, usage: Optional[UsageMeter] = None) -> FastAPI:
     """`scheduler_factory` and `rules_checker` are the live agents (or scripted ones in tests). Without them, change
     demand is switched off. `load_roster_and_rules` returns something with .roster and .rules (mock data for now,
-    Shift Board later)."""
+    Shift Board later). `run_manager` starts weekly runs (without it, starting a run is switched off). `usage` is the
+    daily cap on paid operations (weekly runs and demand changes); without it there is no cap."""
     app = FastAPI(title="NurseSync case API", version="0")
     origins = allowed_origins if allowed_origins is not None else DEV_ORIGINS
     live = scheduler_factory is not None and rules_checker is not None
@@ -120,6 +130,14 @@ def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] =
     async def _refused(_: Request, err: DecisionRefused) -> JSONResponse:
         return _message(str(err), 409)
 
+    @app.exception_handler(RunRefused)
+    async def _bad_run(_: Request, err: RunRefused) -> JSONResponse:
+        return _message(str(err), 422)
+
+    @app.exception_handler(SpendCapReached)
+    async def _cap(_: Request, err: SpendCapReached) -> JSONResponse:
+        return _message(str(err), 429)
+
     @app.exception_handler(CaseNotFound)
     async def _missing(_: Request, err: CaseNotFound) -> JSONResponse:
         return _message(str(err), 404)
@@ -140,6 +158,26 @@ def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] =
     @app.get("/api/health")
     def health() -> Dict[str, Any]:
         return {"ok": True, "live_agents": live}
+
+    @app.get("/api/usage")
+    def get_usage() -> Dict[str, Any]:
+        if usage is None:
+            return {"capped": False, "used_today": 0, "max_per_day": None, "remaining": None, "date": None}
+        return {"capped": True, **usage.snapshot()}
+
+    @app.post("/api/runs", response_model=RunStatus, status_code=202)
+    def start_run(body: StartRunBody) -> Any:
+        if run_manager is None:
+            return _message("Live agents are not enabled on this server, so a weekly run cannot start. "
+                            "Start the server with NURSESYNC_LIVE=1.", 503)
+        return run_manager.start(body.unit, body.week_start, body.case_id)
+
+    @app.get("/api/runs/{run_id}", response_model=RunStatus)
+    def get_run(run_id: str) -> Any:
+        found = run_manager.status(run_id) if run_manager is not None else None
+        if found is None:
+            return _message(f"No run {run_id} was started in this server session.", 404)
+        return found
 
     @app.get("/api/cases", response_model=CaseList)
     def list_cases() -> CaseList:
@@ -182,6 +220,9 @@ def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] =
             new_id = body.new_case_id or f"case-{datetime.now():%Y%m%d%H%M%S}-{secrets.token_hex(3)}"
             if store.exists(new_id):
                 raise DecisionRefused(f"A case with id {new_id} already exists.")
+            check_demand_changes(record, body.changes)  # refuse a bad request BEFORE it spends anything
+            if usage is not None:
+                usage.try_spend("change_demand", case_id)
             inputs = load_roster_and_rules()
             old, child = change_demand(record, body.changes, new_id, scheduler_factory, rules_checker,
                                        inputs.roster, inputs.rules, store=store)

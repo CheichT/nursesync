@@ -8,8 +8,9 @@ Case records are read from and saved to backend/data/cases (gitignored).
 --seed-samples copies the sample cases from docs/sample-cases into the store (the undecided version of each case,
 skipping any id already there), so the approval UI has something to show.
 
-Live agents (needed for change demand) cost money and are off by default. Turn them on with NURSESYNC_LIVE=1
-and an ANTHROPIC_API_KEY in .env.
+Live agents (needed for change demand and for starting a weekly run) cost money and are off by default. Turn them on
+with NURSESYNC_LIVE=1 and an ANTHROPIC_API_KEY in .env. Paid operations are capped per day (default 10, set
+NURSESYNC_MAX_PAID_OPS_PER_DAY); the count is kept in backend/data/usage.json.
 """
 
 import argparse
@@ -46,17 +47,27 @@ def seed_samples(store: CaseStore, folder: Path = OUT_DIR) -> int:
     return added
 
 
-def build_app(store_dir: Path = DEFAULT_FOLDER, live: Optional[bool] = None):
+def build_app(store_dir: Path = DEFAULT_FOLDER, live: Optional[bool] = None, usage_path: Optional[Path] = None):
     store = CaseStore(store_dir)
     live = os.environ.get("NURSESYNC_LIVE") == "1" if live is None else live
     if not live:
         return create_app(store)
+    from app.agents.availability.agent import AnthropicAvailabilityAgent
+    from app.agents.demand.agent import AnthropicDemandAgent
     from app.agents.rules_checker.agent import AnthropicRulesChecker
     from app.agents.scheduler.agent import AnthropicScheduler
     from app.config import load_api_key
+    from app.runs import RunManager
+    from app.usage import UsageMeter
     load_api_key()  # fails now, with a plain message, if the key is missing (it is never printed)
-    return create_app(store, lambda case_id, snapshot_id: AnthropicScheduler(case_id=case_id, snapshot_id=snapshot_id),
-                      AnthropicRulesChecker())
+    usage = UsageMeter(usage_path) if usage_path else UsageMeter()
+    scheduler = lambda case_id, snapshot_id: AnthropicScheduler(case_id=case_id, snapshot_id=snapshot_id)
+    checker = AnthropicRulesChecker()
+    runs = RunManager(store, AnthropicDemandAgent, AnthropicAvailabilityAgent, scheduler, checker, usage=usage)
+    removed = runs.sweep()
+    if removed:
+        print(f"Removed {removed} unfinished case(s) left by an earlier crash")
+    return create_app(store, scheduler, checker, run_manager=runs, usage=usage)
 
 
 def main(argv: Optional[List[str]] = None) -> int:

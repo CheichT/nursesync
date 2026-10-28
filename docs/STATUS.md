@@ -79,8 +79,8 @@ running case 10 three times.
 ## What is left
 
 - Live runs of evals 2 and 10 for the call-out flow, then **a final run of every eval against the baseline**.
-- API: start a weekly run and apply a call-out through the API (both cost money; need guards and a spend cap); choose
-  roster and rules by the case's unit.
+- API: apply a call-out through the API (costs money; same guards and the daily cap apply); choose roster and rules by
+  the case's unit. (Starting a weekly run and the daily cap on paid operations are done.)
 - Real Shift Board data in place of mock files; Availability batching for units of about 50 nurses (output is cut off
   and rows become `missing`, never guessed); wire `get_callouts` into the Availability agent for weekly runs.
 - A call-out after a case is approved (the PRD only covers one still waiting); a login.

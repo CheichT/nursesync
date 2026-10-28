@@ -14,3 +14,4 @@ __pycache__
 
 # local case records
 backend/data/cases/
+backend/data/usage.json

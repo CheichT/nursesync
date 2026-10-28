@@ -40,6 +40,9 @@ Through the Vite proxy these all hold as long as you open the app at `localhost:
 | `GET /api/cases/{case_id}` | | The full `CaseRecord` (same shape as `docs/sample-cases/*.json`). |
 | `POST /api/cases/{case_id}/approve` | `{ "acknowledge_open_issues": false }` (the body is optional) | The updated `CaseRecord`. |
 | `POST /api/cases/{case_id}/reject` | `{}` (any JSON; it is ignored) | The updated `CaseRecord` (`status` and `outcome` are `rejected`). |
+| `POST /api/runs` | `{ "unit": "7W", "week_start": "2026-11-02", "case_id": null }` | **202** `{ run_id, case_id, state, started_at, ... }` at once. The run goes on in the background (a few minutes, about $0.50 to $1.50). Poll `GET /api/runs/{run_id}` or the case itself. Needs `NURSESYNC_LIVE=1` (else 503). |
+| `GET /api/runs/{run_id}` | | `{ state: "running" \| "done" \| "failed", outcome, message, finished_at }`. Kept only while the server runs; the case itself is saved. |
+| `GET /api/usage` | | `{ capped, used_today, max_per_day, remaining, date }`: how many paid operations are left today. |
 | `POST /api/cases/{case_id}/change-demand` | `{ "changes": [{ "unit", "date", "shift", "nurses_needed" }], "new_case_id": null }` | `{ "old": CaseRecord, "child": CaseRecord }`. After this, show `child`. `new_case_id` is optional (the server makes one). |
 
 ## New in the case record: the agents' notes
@@ -58,10 +61,11 @@ line, at most 20 items, at most 300 characters each) and never change a row's st
 | --- | --- |
 | 400 | Wrong Host header. |
 | 403 | A POST from a web page that is not the local app. |
-| 404 | No case with that id. |
+| 404 | No case (or run) with that id. |
 | 415 | A POST without `Content-Type: application/json`. |
 | 409 | Refused. Out of date (the message names the newer case), already decided, no draft to approve (the message is the `stop_reason`), open issues without `acknowledge_open_issues`, a demand row that does not exist, a new case id that is taken, or **another request is already changing this case** (one request per case at a time; it does not wait). **Nothing was saved.** |
-| 422 | The request is malformed (a bad case id, an unknown field, a negative number, an empty `changes` list). |
+| 429 | The daily limit of paid operations is used up. Nothing was started or spent. |
+| 422 | The request is malformed or cannot start (an unknown unit, a week that is not a Monday, a week with no data) (a bad case id, an unknown field, a negative number, an empty `changes` list). |
 | 503 | Change demand while live agents are off. Nothing was changed. |
 | 500 | Something unexpected. A generic message, no details. Nothing was changed: a run that fails halfway removes its unfinished case, so the id can be used again. |
 
@@ -89,12 +93,24 @@ curl -X POST http://127.0.0.1:8000/api/cases/demo-demand-change/change-demand -H
   -d '{"changes":[{"unit":"7W","date":"2026-11-03","shift":"night","nurses_needed":4}]}'
 ```
 
+## Starting a weekly run, and the daily cap
+
+- **One run at a time.** A second `POST /api/runs` while one is running gets 409 "already in progress" and costs nothing.
+- **Daily cap on paid operations** (weekly runs and demand changes): 10 a day by default. Set `NURSESYNC_MAX_PAID_OPS_PER_DAY`
+  (0 stops all paid operations). It counts operations, not dollars, and it is saved in `backend/data/usage.json` so a restart
+  does not reset it. An operation counts when it is accepted, even if it later fails (the money may be spent). A bad request
+  (a wrong unit or week, a demand row that does not exist) is refused before it counts. An unreadable usage file stops paid
+  operations instead of guessing.
+- **A failed run** removes its unfinished case, and its status says so in plain words (details stay in the server log).
+  A `building` case left by a crash is removed at the next server start.
+- **For now only the mock data exists**: unit `7W`, week of `2026-11-02`. A real Shift Board source replaces it later.
+- For the UI: a "Start weekly run" button posts to `/api/runs` (JSON content type), then polls `/api/runs/{id}` every few
+  seconds until `state` is `done` or `failed`, shows the `message`, and shows the remaining count from `/api/usage`.
+
 ## What is NOT here yet
 
 - Login or any permission checks (anyone who can reach the port can decide). Local only for now.
-- Starting a weekly run and applying a call-out through the API (both cost money; the code exists in `orchestrator.py`
-  and `callouts.py`).
+- Applying a call-out through the API (it costs money; the code exists in `callouts.py`).
 - Waiting in line: a second request for a case that is busy is refused at once (409), not queued. Other cases are not blocked.
-- Spend limits: change demand has no cap on how often it can be called once live agents are on (about $0.30 to $1.20 each).
 - Roster and rules for change demand are not chosen by the case's unit yet.
 - Roster and rules for change demand come from the mock data until a real Shift Board source exists.
