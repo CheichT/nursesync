@@ -87,7 +87,8 @@ def run_call_out(parent: CaseRecord, callouts: List[Callout], new_case_id: str, 
     try:
         child = schedule_case(scheduler, rules_checker, snapshot, demand, availability, new_case_id, parent.case_id,
                               trigger="call_out", affected_shifts=affected, store=store, locked_assignments=locked,
-                              earlier_assignments=earlier, callouts=unique)
+                              earlier_assignments=earlier, callouts=unique, extra_review=parent.input_review,
+                              unusual=list(parent.unusual))
     except BaseException:
         if store is not None:
             store.discard_building(new_case_id)

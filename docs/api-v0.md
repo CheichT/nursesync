@@ -42,6 +42,16 @@ Through the Vite proxy these all hold as long as you open the app at `localhost:
 | `POST /api/cases/{case_id}/reject` | `{}` (any JSON; it is ignored) | The updated `CaseRecord` (`status` and `outcome` are `rejected`). |
 | `POST /api/cases/{case_id}/change-demand` | `{ "changes": [{ "unit", "date", "shift", "nurses_needed" }], "new_case_id": null }` | `{ "old": CaseRecord, "child": CaseRecord }`. After this, show `child`. `new_case_id` is optional (the server makes one). |
 
+## New in the case record: the agents' notes
+
+Two additive fields (older records without them still load):
+- `unusual`: a list of one-line notes from the Demand agent ("Friday night is the busiest"). Advisory text.
+- `input_review`: `needs_manual_review` items about the INPUTS (the agents' own items and nurses who are not on the
+  roster). `needs_manual_review` is still the full list (the draft's items plus these), without repeats.
+
+Both are untrusted text from an AI agent: show them as plain text, never as HTML. They are cleaned on the server (one
+line, at most 20 items, at most 300 characters each) and never change a row's status or stop a run.
+
 ## Errors (always `{ "message": "plain sentence" }`, safe to show the manager)
 
 | Status | Meaning |

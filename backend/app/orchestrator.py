@@ -29,6 +29,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple
 
 from pydantic import ValidationError
 
+from app.agent_output import AgentOutput, clean_notes, clean_review, merge_review
 from app.case_store import CaseStore
 from app.contract.case_record import (
     AvailabilityResult,
@@ -277,9 +278,10 @@ def stamp_availability(raw: Any, snapshot: Snapshot, agent_error: str = "",
     return AvailabilityResult(rows=rows, counts=status_counts(rows))
 
 
-def _run_agent(agent: Any, snapshot: Snapshot, tries: int = 2) -> Tuple[Any, str]:
+def _run_agent(agent: Any, snapshot: Snapshot, tries: int = 2) -> Tuple[Optional[AgentOutput], str]:
     """Run one agent on its own copy of the snapshot. A failure, or a result with no rows, is retried once;
-    after that it becomes an error message, never a crash and never a guess."""
+    after that it becomes an error message, never a crash and never a guess. A plain list of rows is wrapped
+    in an AgentOutput with no extras."""
     error = ""
     for _ in range(tries):
         try:
@@ -287,10 +289,11 @@ def _run_agent(agent: Any, snapshot: Snapshot, tries: int = 2) -> Tuple[Any, str
         except Exception as err:
             error = str(err) or type(err).__name__
             continue
-        if result is None or result == []:
+        output = result if isinstance(result, AgentOutput) else AgentOutput(rows=result)
+        if output.rows is None or output.rows == []:
             error = "it returned no rows"
             continue
-        return result, ""
+        return output, ""
     return None, f"{error} (after {tries} tries)"
 
 
@@ -331,15 +334,16 @@ def schedule_case(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: S
                   extra_review: Optional[List[NeedsManualReview]] = None,
                   store: Optional[CaseStore] = None, locked_assignments: Optional[List[Assignment]] = None,
                   earlier_assignments: Optional[List[Assignment]] = None,
-                  callouts: Optional[List[Callout]] = None) -> CaseRecord:
+                  callouts: Optional[List[Callout]] = None, unusual: Optional[List[str]] = None) -> CaseRecord:
     """Build the case record for stamped rows. If any required row is missing, STOP before the Scheduler runs
     (outcome stopped_missing_input, no drafts) and tell the manager what is missing, as the PRD says. Otherwise
     run the Scheduler and Rules Checker loop. The Scheduler must be built with snapshot.snapshot_id.
-    `extra_review` rows (such as a nurse not on the roster) are added to needs_manual_review. The finished
-    record is saved to `store` when one is given. Used by run_case and by a manager's demand change."""
+    `extra_review` rows (a nurse not on the roster, the agents' own items) are kept in `input_review` and added to
+    needs_manual_review; `unusual` (the Demand agent's notes) is kept as is. The finished record is saved to `store`
+    when one is given. Used by run_case and by a manager's demand change."""
     record = _schedule(scheduler, rules_checker, snapshot, demand, availability, case_id, parent_case_id,
                        trigger, affected_shifts, list(extra_review or []), locked_assignments or [],
-                       earlier_assignments or [], callouts or [])
+                       earlier_assignments or [], callouts or [], list(unusual or []))
     if store is not None:
         store.save(record)
     return record
@@ -348,7 +352,8 @@ def schedule_case(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: S
 def _schedule(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: Snapshot, demand: DemandResult,
               availability: AvailabilityResult, case_id: str, parent_case_id: Optional[str], trigger: str,
               affected_shifts: Optional[List[ShiftRef]], extra: List[NeedsManualReview],
-              locked: List[Assignment], earlier: List[Assignment], callouts: List[Callout]) -> CaseRecord:
+              locked: List[Assignment], earlier: List[Assignment], callouts: List[Callout],
+              unusual: List[str]) -> CaseRecord:
     common = dict(
         case_id=case_id, snapshot_id=snapshot.snapshot_id, start_time=snapshot.created_at, trigger=trigger,
         affected_shifts=affected_shifts if affected_shifts is not None else all_shifts(snapshot.week_start),
@@ -358,7 +363,7 @@ def _schedule(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: Snaps
     if demand.counts.missing or availability.counts.missing:
         reason, review = _missing_input(demand, availability)
         return CaseRecord(**common, outcome="stopped_missing_input", stop_reason=reason,
-                          needs_manual_review=review + extra)
+                          needs_manual_review=merge_review(review, extra), input_review=extra, unusual=unusual)
 
     call_out = trigger == "call_out"
     inputs = Phase1Inputs(demand=demand.rows, availability=availability.rows,
@@ -374,7 +379,7 @@ def _schedule(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: Snaps
                                           for v, vs in result.round_violations],
         final_draft=result.final_draft, open_violations=result.open_violations,
         soft_tradeoffs=result.soft_tradeoffs, unfixable=result.unfixable,
-        needs_manual_review=result.needs_manual_review + extra,
+        needs_manual_review=merge_review(result.needs_manual_review, extra), input_review=extra, unusual=unusual,
     )
 
 
@@ -406,15 +411,21 @@ def run_case(demand_agent: DemandAgent, availability_agent: AvailabilityAgent, s
         with ThreadPoolExecutor(max_workers=2) as pool:
             demand_job = pool.submit(_run_agent, demand_agent, snapshot)
             availability_job = pool.submit(_run_agent, availability_agent, snapshot)
-            demand_raw, demand_err = demand_job.result()
-            availability_raw, availability_err = availability_job.result()
+            demand_out, demand_err = demand_job.result()
+            availability_out, availability_err = availability_job.result()
+        demand_raw = demand_out.rows if demand_out else None
+        availability_raw = availability_out.rows if availability_out else None
 
         demand = stamp_demand(demand_raw, snapshot, demand_err)
         availability = stamp_availability(availability_raw, snapshot, availability_err, leave)
 
-        extra = unknown_nurse_review(availability_raw, snapshot) if not availability_err else []
+        # advisory extras from the agents (never decide anything; see agent_output.py)
+        stray = unknown_nurse_review(availability_raw, snapshot) if not availability_err else []
+        extra = merge_review(stray, clean_review(demand_out.needs_manual_review if demand_out else []),
+                             clean_review(availability_out.needs_manual_review if availability_out else []))
+        unusual = clean_notes(demand_out.unusual if demand_out else [])
         return schedule_case(scheduler, rules_checker, snapshot, demand, availability, case_id, parent_case_id,
-                             extra_review=extra, store=store)
+                             extra_review=extra, unusual=unusual, store=store)
     except BaseException:
         if store is not None:
             store.discard_building(case_id)  # a failed run must not leave a ghost case

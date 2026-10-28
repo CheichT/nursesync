@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 
 from app.agents.common import make_client, parse_reply, reply_text, run_tool_loop
 from app.agents.data_source import DataSource, MockSource
+from app.agent_output import AgentOutput
 from app.config import MODEL
 from app.contract.case_record import Snapshot
 
@@ -42,9 +43,8 @@ class AnthropicDemandAgent:
         self.model = model
         self.system_prompt = PROMPT_PATH.read_text()
         self.last_text = ""
-        self.last_extra: Dict[str, Any] = {}  # the reply's `unusual` and `needs_manual_review`, for the manager
 
-    def run(self, snapshot: Snapshot) -> List[Dict[str, Any]]:
+    def run(self, snapshot: Snapshot) -> AgentOutput:
         def run_tool(name: str, tool_input: Dict[str, Any]) -> str:
             if name != "get_demand":
                 return json.dumps({"error": f"unknown tool {name}"})
@@ -61,5 +61,4 @@ class AnthropicDemandAgent:
         self.last_text = reply_text(reply)
         parsed = parse_reply(self.last_text)
         rows = rows_from_reply(parsed)
-        self.last_extra = {k: parsed.get(k, []) for k in ("unusual", "needs_manual_review")}
-        return rows
+        return AgentOutput(rows=rows, unusual=parsed.get("unusual", []), needs_manual_review=parsed.get("needs_manual_review", []))

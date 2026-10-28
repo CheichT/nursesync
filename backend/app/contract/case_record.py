@@ -103,6 +103,8 @@ class DecisionDetails(Form):
 class CaseRecord(Form):
     """One run, start to finish.
 
+    `needs_manual_review` is the draft's items plus `input_review` (items about the inputs: the agents' own items and
+    nurses not on the roster), without repeats. Child cases inherit `input_review` and `unusual`.
     `drafts` and `violations` hold every checked version. `final_draft` is the best one (empty when no round
     produced a valid draft) and `open_violations`, `unfixable` and `needs_manual_review` belong to it.
     A run that stops for missing input has no drafts, outcome stopped_missing_input and a plain `stop_reason`.
@@ -131,6 +133,8 @@ class CaseRecord(Form):
     soft_tradeoffs: List[SoftTradeoff] = Field(default_factory=list)
     unfixable: List[Unfixable] = Field(default_factory=list)
     needs_manual_review: List[NeedsManualReview] = Field(default_factory=list)
+    unusual: List[str] = Field(default_factory=list)  # one-line notes from the Demand agent (advisory text)
+    input_review: List[NeedsManualReview] = Field(default_factory=list)  # review items about the INPUTS (agents, roster)
     newer_case_id: Optional[str] = None  # set when status is out_of_date: the run that replaced this one
     manager_decision: Optional[Decision] = None
     decision_time: Optional[str] = None

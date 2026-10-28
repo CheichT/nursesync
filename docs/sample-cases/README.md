@@ -8,7 +8,7 @@ Regenerate: `cd backend && ../.venv/bin/python -m app.sample_cases` (a test fail
 | File | `status` | `outcome` | What it shows |
 | --- | --- | --- | --- |
 | `passed.json` | `waiting_approval` | `passed` | Clean week. Approve is allowed. |
-| `needs_review.json` | `waiting_approval` | `passed` | Three flagged demand rows (ratio mismatch, outlier, agent flag) and a nurse not on the roster in `needs_manual_review`. The draft still built. Show the flags first. |
+| `needs_review.json` | `waiting_approval` | `passed` | Three flagged demand rows (ratio mismatch, outlier, agent flag), a nurse not on the roster, and the agents' own extras: two lines in `unusual` and two items in `input_review` (also in `needs_manual_review`). The draft still built. Show the flags first, then the notes (as plain text). |
 | `open_issues.json` | `waiting_approval` | `stopped_after_3_rounds` | Best draft after 3 rounds: an open `coverage` violation, an `open_gaps` row, an `unfixable` row. Approving needs an explicit acknowledgement. |
 | `stopped_missing_input.json` | `waiting_approval` | `stopped_missing_input` | No draft. `stop_reason` says what is missing; `needs_manual_review` lists the demand day and the nurse. No Approve. Reject or fix inputs. |
 | `approved.json` | `approved` | `passed` | After Approve: `manager_decision: "approved"`, `decision_time`, `decision_details`. |
@@ -24,5 +24,5 @@ Notes for the UI
 - Rows to show first: `demand_result.rows` and `availability_result.rows` where `status` is not `ok` (use `note`), then
   `needs_manual_review`, `open_violations` / `unfixable`, `final_draft.open_gaps`, and `soft_tradeoffs`.
 - A case with `final_draft: null` has nothing to approve.
-- The agents' own `unusual` and `needs_manual_review` extras are not in the record yet. Only stamped rows and notes are.
+- The Demand agent's `unusual` lines are in `unusual`; the agents' `needs_manual_review` items are in `input_review` and merged into `needs_manual_review`. Show them as plain text.
 - There is no API yet. Read these files directly for now.
