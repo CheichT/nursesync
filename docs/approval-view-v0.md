@@ -118,6 +118,23 @@ Manager control on the Approve AI draft tab (API connected only).
 
 Needs `NURSESYNC_LIVE=1` (else 503). One run at a time (409 if busy). Daily paid-ops cap (429 when used up). Costs about $0.50–$1.50 and can take a few minutes. **Do not describe as secure.**
 
+## Nurse names
+
+The case record only holds nurse ids. On connect the view calls `GET /api/roster` once (`{ nurses: [{ nurse_id, name }] }`) and shows names in the schedule grid, flags, issues and the call-out banner. If the call fails it shows ids. Names are mock roster data for now.
+
+## Report call-out
+
+Action on a case with `status` `waiting_approval` and a draft (API connected, live agents on, paid runs left).
+
+| Step | Behavior |
+| --- | --- |
+| **Pick** | Choose one nurse and shift from the draft's assignments. Esc or Cancel closes the panel. |
+| **Confirm** | Shows the nurse, date, shift, cost (about $0.15–$1.20) and paid runs left. |
+| **Send** | `POST /api/cases/{case_id}/call-out` with `{ call_outs: [{ nurse_id, date, shift }] }`. The reply is `{ old, child }`: open `child`. The old case becomes `out_of_date`. |
+| **Errors** | 503 (live agents off), 429 (daily limit), 409 (refused, nothing spent): show the server `message` as-is. |
+
+Disabled when live agents are off, no paid runs are left, or the case is not waiting. **Do not describe as secure.**
+
 ## Accessibility (must ship with the UI)
 
 - Every control keyboard-reachable; Esc closes dialogs  
@@ -140,4 +157,4 @@ npm run dev
 - Login / permissions  
 - Shift Board notification to nurses  
 - Fix-inputs flow for missing availability  
-- Call-outs through the API (Cheich)  
+- Call-outs after a case is approved (only a case still waiting can take a call-out)  
