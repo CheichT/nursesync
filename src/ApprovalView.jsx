@@ -23,7 +23,6 @@ import {
   getRun,
   getUsage,
   formatCaseOption,
-  CaseApiError,
 } from "./caseApi";
 
 const SHIFT_LABEL = { day: "Day 07:00–19:00", night: "Night 19:00–07:00" };
@@ -265,46 +264,6 @@ export default function ApprovalView({ showToast }) {
     }
   };
 
-  const boot = async () => {
-    stopRunPoll();
-    setRunStatus(null);
-    setLoading(true);
-    setLoadError("");
-    setRunError("");
-    setBusy(false);
-    const health = await checkHealth();
-    if (!health.ok) {
-      setSource("samples");
-      setUsage(null);
-      setApiNote(
-        `Local API not reachable (${health.error}). Start: cd backend && ../.venv/bin/python -m app.serve --seed-samples`
-      );
-      await loadSample("passed");
-      return;
-    }
-    setSource("api");
-    setLiveAgents(health.live_agents);
-    setApiNote(
-      health.live_agents
-        ? "Connected to local case API. Live agents ON — weekly runs and change demand cost money."
-        : "Connected to local case API. Live agents off — approve/reject work; weekly run and change demand need NURSESYNC_LIVE=1."
-    );
-    await refreshUsage();
-    try {
-      await refreshCaseList();
-    } catch (err) {
-      setSource("samples");
-      setApiNote(`API health ok but listing cases failed: ${err.message}`);
-      await loadSample("passed");
-    }
-  };
-
-  useEffect(() => {
-    boot();
-    return () => stopRunPoll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect once on mount
-  }, []);
-
   const onRunFinished = useCallback(
     async (status) => {
       stopRunPoll();
@@ -351,6 +310,91 @@ export default function ApprovalView({ showToast }) {
     [onRunFinished, stopRunPoll]
   );
 
+  /** After reload: a `building` case means a weekly run is still going — resume poll if the server still has it. */
+  const resumeBuildingRun = useCallback(
+    async (cases) => {
+      const building = (cases || []).find((c) => c.status === "building");
+      if (!building) return;
+      setBusy(true);
+      setRunError("");
+      const placeholder = {
+        run_id: building.case_id,
+        case_id: building.case_id,
+        state: "running",
+        started_at: building.start_time || "",
+        finished_at: null,
+        outcome: null,
+        message: "A weekly run is in progress. Waiting for it to finish…",
+      };
+      setRunStatus(placeholder);
+      try {
+        const status = await getRun(building.case_id);
+        setRunStatus(status);
+        if (status.state === "running") startRunPoll(status.run_id);
+        else if (status.state === "done" || status.state === "failed") await onRunFinished(status);
+      } catch (err) {
+        // Server may have forgotten the run id after a restart; keep the notice from the building case.
+        setRunStatus({
+          ...placeholder,
+          message: err.message || placeholder.message,
+        });
+      }
+    },
+    [onRunFinished, startRunPoll]
+  );
+
+  const boot = async () => {
+    stopRunPoll();
+    setRunStatus(null);
+    setLoading(true);
+    setLoadError("");
+    setRunError("");
+    setBusy(false);
+    const health = await checkHealth();
+    if (!health.ok) {
+      setSource("samples");
+      setUsage(null);
+      setApiNote(
+        `Local API not reachable (${health.error}). Start: cd backend && ../.venv/bin/python -m app.serve --seed-samples`
+      );
+      await loadSample("passed");
+      return;
+    }
+    setSource("api");
+    setLiveAgents(health.live_agents);
+    setApiNote(
+      health.live_agents
+        ? "Connected to local case API. Live agents ON — weekly runs and change demand cost money."
+        : "Connected to local case API. Live agents off — approve/reject work; weekly run and change demand need NURSESYNC_LIVE=1."
+    );
+    await refreshUsage();
+    try {
+      const data = await listCases();
+      const cases = data.cases || [];
+      setCaseList(cases);
+      const building = cases.find((c) => c.status === "building");
+      const pick = building?.case_id || cases[0]?.case_id || "";
+      if (pick) await loadApiCase(pick);
+      else {
+        setCaseId("");
+        setRecord(null);
+        setLoadError("No cases in the store. Start the API with --seed-samples.");
+        setLoading(false);
+      }
+      await resumeBuildingRun(cases);
+    } catch (err) {
+      setSource("samples");
+      setApiNote(`API health ok but listing cases failed: ${err.message}`);
+      await loadSample("passed");
+    }
+  };
+
+  useEffect(() => {
+    boot();
+    return () => stopRunPoll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect once on mount
+  }, []);
+
   const onStartWeeklyRun = async () => {
     setRunError("");
     setActionError("");
@@ -364,18 +408,18 @@ export default function ApprovalView({ showToast }) {
       setRunError("Unit and week start (Monday) are required.");
       return;
     }
-    const remaining =
-      usage?.capped && usage.remaining != null ? ` ${usage.remaining} paid operation(s) left today.` : "";
-    const confirmed = window.confirm(
-      `Start a weekly run for unit ${unit}, week of ${week}? This calls live agents, costs about $0.50–$1.50, and can take a few minutes.${remaining}`
-    );
+    if (usage?.capped && usage.remaining === 0) {
+      setRunError("The daily limit of paid operations is used up.");
+      return;
+    }
+    const confirmed = window.confirm("This runs the live agents and costs real money. Start?");
     if (!confirmed) return;
     setBusy(true);
     setRunStatus(null);
     try {
       const status = await startWeeklyRun(unit, week);
       setRunStatus(status);
-      showToast?.(`Weekly run started (${status.case_id}). This costs money and can take a few minutes.`);
+      if (status.message) showToast?.(status.message);
       await refreshUsage();
       try {
         await refreshCaseList(status.case_id);
@@ -386,19 +430,22 @@ export default function ApprovalView({ showToast }) {
       else await onRunFinished(status);
     } catch (err) {
       setBusy(false);
-      setRunError(err.message || "Could not start weekly run");
+      const message = err.message || "Could not start weekly run";
+      setRunError(message);
+      showToast?.(message);
       await refreshUsage();
-      if (err instanceof CaseApiError && err.status === 503) {
-        showToast?.("Live agents are off — restart API with NURSESYNC_LIVE=1 to start a weekly run");
-      } else if (err instanceof CaseApiError && err.status === 429) {
-        showToast?.("Daily paid-operation limit reached");
-      }
     }
   };
 
   const runInProgress = runStatus?.state === "running";
+  const noPaidRunsLeft = Boolean(usage?.capped && usage.remaining === 0);
   const startRunDisabled =
-    busy || runInProgress || source !== "api" || !runUnit.trim() || !runWeekStart.trim();
+    busy ||
+    runInProgress ||
+    noPaidRunsLeft ||
+    source !== "api" ||
+    !runUnit.trim() ||
+    !runWeekStart.trim();
 
   const openIssues = record ? hasOpenIssues(record) : false;
   const draft = record?.final_draft;
@@ -531,10 +578,9 @@ export default function ApprovalView({ showToast }) {
       await refreshCaseList(child.case_id);
       showToast?.(`Opened child case ${child.case_id}`);
     } catch (err) {
-      setActionError(err.message || "Change demand failed");
-      if (err instanceof CaseApiError && err.status === 503) {
-        showToast?.("Live agents are off — restart API with NURSESYNC_LIVE=1 to change demand");
-      }
+      const message = err.message || "Change demand failed";
+      setActionError(message);
+      showToast?.(message);
     } finally {
       setBusy(false);
     }
@@ -659,11 +705,13 @@ export default function ApprovalView({ showToast }) {
             title={
               source !== "api"
                 ? "Connect to the local API first"
-                : !liveAgents
-                  ? "Server needs NURSESYNC_LIVE=1"
-                  : runInProgress
-                    ? "A run is already in progress"
-                    : "Start weekly run"
+                : noPaidRunsLeft
+                  ? "No paid runs left today"
+                  : !liveAgents
+                    ? "Server needs NURSESYNC_LIVE=1"
+                    : runInProgress
+                      ? "A run is already in progress"
+                      : "Start weekly run"
             }
           >
             {runInProgress ? "Running…" : "Start weekly run"}
@@ -671,10 +719,8 @@ export default function ApprovalView({ showToast }) {
         </div>
         {usage && (
           <p className="muted small" role="status">
-            {usage.capped
-              ? `Paid operations today: ${usage.used_today} used, ${usage.remaining} left (cap ${usage.max_per_day}${
-                  usage.date ? ` · ${usage.date}` : ""
-                }).`
+            {usage.capped && usage.remaining != null && usage.max_per_day != null
+              ? `${usage.remaining} of ${usage.max_per_day} paid runs left today`
               : "No daily paid-ops cap on this server."}
           </p>
         )}
@@ -683,6 +729,19 @@ export default function ApprovalView({ showToast }) {
             Live agents are off. Starting a run will be refused (503) until the API is started with
             NURSESYNC_LIVE=1 and an API key.
           </p>
+        )}
+        {runInProgress && (
+          <div className="approval-banner soft" role="status">
+            A weekly run is in progress
+            {runStatus?.case_id ? (
+              <>
+                {" "}
+                (<code>{runStatus.case_id}</code>). The button stays off until it finishes.
+              </>
+            ) : (
+              ". The button stays off until it finishes."
+            )}
+          </div>
         )}
         {runStatus && (
           <p className="muted small" role="status">
