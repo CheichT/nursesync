@@ -78,16 +78,9 @@ def mark_out_of_date(record: CaseRecord, newer_case_id: str) -> CaseRecord:
     return record.model_copy(update={"status": "out_of_date", "newer_case_id": newer_case_id})
 
 
-def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: str,
-                  make_scheduler: SchedulerFactory, rules_checker: RulesChecker, roster: List[Nurse],
-                  rules: RulesConfig, now: Optional[Callable[[], datetime]] = None,
-                  store: Optional[CaseStore] = None) -> Tuple[CaseRecord, CaseRecord]:
-    """Set nurses_needed on one or more rows, then rerun the Scheduler loop only (availability is kept).
-
-    Returns (old_case, new_case). The new case is a child of the old one with its own snapshot; the old case
-    becomes out_of_date with the decision recorded. Rows the manager sets become `ok` with a plain note.
-    With a `store`, the new case is saved as building, then finished, then the old case is saved as out_of_date.
-    """
+def check_demand_changes(record: CaseRecord, changes: List[DemandChange]) -> Dict[Tuple[str, str, str], DemandRow]:
+    """Refuse a demand change that cannot be applied, before anything is built or paid for. Returns the case's demand
+    rows by (unit, date, shift)."""
     _check_open(record)
     if not changes:
         raise DecisionRefused("No demand changes were given.")
@@ -101,6 +94,20 @@ def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: 
     unknown = [k for k in seen if k not in by_key]
     if unknown:
         raise DecisionRefused(f"There is no demand row for {unknown[0][1]} {unknown[0][2]} on unit {unknown[0][0]}.")
+    return by_key
+
+
+def change_demand(record: CaseRecord, changes: List[DemandChange], new_case_id: str,
+                  make_scheduler: SchedulerFactory, rules_checker: RulesChecker, roster: List[Nurse],
+                  rules: RulesConfig, now: Optional[Callable[[], datetime]] = None,
+                  store: Optional[CaseStore] = None) -> Tuple[CaseRecord, CaseRecord]:
+    """Set nurses_needed on one or more rows, then rerun the Scheduler loop only (availability is kept).
+
+    Returns (old_case, new_case). The new case is a child of the old one with its own snapshot; the old case
+    becomes out_of_date with the decision recorded. Rows the manager sets become `ok` with a plain note.
+    With a `store`, the new case is saved as building, then finished, then the old case is saved as out_of_date.
+    """
+    by_key = check_demand_changes(record, changes)
 
     new_rows: List[DemandRow] = []
     for row in record.demand_result.rows:

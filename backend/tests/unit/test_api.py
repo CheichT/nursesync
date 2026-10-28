@@ -234,6 +234,7 @@ def test_live_agents_stay_off_unless_asked(tmp_path, monkeypatch):
     assert off.get("/api/health").json()["live_agents"] is False
     monkeypatch.setenv("NURSESYNC_LIVE", "1")
     monkeypatch.setattr("app.config.load_api_key", lambda: "test-key-not-real")
+    monkeypatch.setattr("app.agents.common.load_api_key", lambda: "test-key-not-real")  # the clients read it here
     on = TestClient(serve.build_app(tmp_path), base_url=LOCAL)
     assert on.get("/api/health").json()["live_agents"] is True
 
