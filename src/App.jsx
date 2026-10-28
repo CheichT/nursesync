@@ -1160,6 +1160,7 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .content:has(.approval-panel) { max-width: 980px; }
 .panel-head { display:flex; justify-content:space-between; align-items:center; }
 .approval-sample { display:flex; flex-direction:column; gap:4px; font-size:0.8rem; font-weight:600; min-width: 220px; }
+.approval-source-controls { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
 .approval-meta-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom: 10px; }
 .approval-dl { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; margin: 0; }
 .approval-dl dt { font-size: 0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
