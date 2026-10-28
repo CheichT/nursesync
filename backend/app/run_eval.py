@@ -1,7 +1,10 @@
-"""Run a Phase 1 eval card. Cases 1, 4, 5, 6, 7 call the live agents (a few cents per run); 13 and 14 are code-only.
+"""Run an eval card. Cases 1, 2, 4, 5, 6, 7 call the live agents (cents to about a dollar per run); 3, 13 and 14
+are code-only for the team (case 3 also runs the live baseline).
 
 Usage: cd backend && ../.venv/bin/python -m app.run_eval case_04 [--runs 3]
-Cases: case_01 case_04 case_05 case_06 case_07 case_13 case_14. See backend/evals/phase1/ for what each should show.
+Cases: case_01 case_02 case_03 case_04 case_05 case_06 case_07 case_13 case_14.
+Cases 2, 3 and 7 run the single-agent baseline and the team on the same inputs, so you can compare them.
+See backend/evals/phase1/ for what each should show.
 Pass or fail always comes from check_rules, never from an agent.
 """
 
@@ -14,13 +17,25 @@ from typing import Any, Callable, Dict, List, Optional
 from app.agents.baseline.agent import run_baseline
 from app.agents.rules_checker.agent import AnthropicRulesChecker
 from app.agents.scheduler.agent import AnthropicScheduler
+from app.contract.case_record import AvailabilityResult, DemandResult, Snapshot
 from app.contract.models import Draft
+from app.harness.eval_scoring import listed_all_missing, missing_inputs
 from app.harness.phase1 import DEFAULT_DATA, Phase1Result, format_report, load_inputs, load_scenario, run_phase1
+from app.orchestrator import make_snapshot, schedule_case, status_counts
 from app.harness.rules import check_rules
 from app.harness.stand_ins import DroppingRulesChecker, HintingRulesChecker, ScriptedScheduler, without
 
-LIVE_CASES = {"case_01": ("mock", False), "case_04": ("case_04", True), "case_05": ("case_05", False),
-              "case_06": ("case_06", True), "case_07": ("mock", False)}
+LIVE_CASES = {"case_01": ("mock", False), "case_02": ("case_02", False), "case_03": ("case_03", False),
+              "case_04": ("case_04", True), "case_05": ("case_05", False), "case_06": ("case_06", True),
+              "case_07": ("mock", False)}
+COMPARE_CASES = ("case_02", "case_03", "case_07")  # run the baseline and the team on the same inputs
+
+
+class NeverScheduler:
+    """The team must stop before the Scheduler when input is missing. If this is ever called, the run fails loudly."""
+
+    def build(self, *args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("the Scheduler ran although required input was missing")
 
 
 class PlantedFirstScheduler:
@@ -43,11 +58,40 @@ def run_team(name: str, planted: bool) -> Phase1Result:
     return run_phase1(scheduler, AnthropicRulesChecker(), inputs)
 
 
-def summarize(result: Phase1Result) -> Dict[str, Any]:
+def summarize(result: Phase1Result, inputs: Any = None) -> Dict[str, Any]:
+    """The team's numbers. With `inputs`, also the same coverage numbers the baseline reports, so the two sides
+    can be compared: fully_staffed_shifts, shifts_in_week, coverage_rate."""
     hard = [v for v in result.open_violations if v.severity == "hard"]
-    return {"outcome": result.outcome, "rounds_used": result.rounds_used, "hard_violations": len(hard),
-            "unfixable_rows": len(result.unfixable), "violations": [f"{v.rule} {v.nurse_id or '-'} {v.date} {v.shift}" for v in hard],
-            "round_errors": [r.error for r in result.rounds if r.error]}
+    out: Dict[str, Any] = {
+        "outcome": result.outcome, "rounds_used": result.rounds_used, "hard_violations": len(hard),
+        "unfixable_rows": len(result.unfixable),
+        "violations": [f"{v.rule} {v.nurse_id or '-'} {v.date} {v.shift}" for v in hard],
+        "round_errors": [r.error for r in result.rounds if r.error]}
+    if inputs is not None:
+        crew: Dict[tuple, int] = {}
+        for a in (result.final_draft.assignments if result.final_draft else []):
+            crew[(a.unit, a.date, a.shift)] = crew.get((a.unit, a.date, a.shift), 0) + 1
+        staffed = sum(1 for d in inputs.demand if crew.get((d.unit, d.date, d.shift), 0) == d.nurses_needed)
+        out.update(fully_staffed_shifts=staffed, shifts_in_week=len(inputs.demand),
+                   coverage_rate=round(staffed / len(inputs.demand), 3),
+                   open_gaps_listed=len(result.final_draft.open_gaps) if result.final_draft else 0)
+    return out
+
+
+def run_team_missing(name: str) -> Dict[str, Any]:
+    """Case 3 for the team: required input is missing, so the orchestrator must stop before the Scheduler runs.
+    No agent is called, so this costs nothing. Scored by the same helpers as the baseline."""
+    inputs, _ = load_scenario(name)
+    snapshot: Snapshot = make_snapshot(inputs.roster, inputs.rules, inputs.demand[0].unit, inputs.demand[0].date,
+                                       "snap-eval")
+    record = schedule_case(NeverScheduler(), HintingRulesChecker(), snapshot,
+                           DemandResult(rows=inputs.demand, counts=status_counts(inputs.demand)),
+                           AvailabilityResult(rows=inputs.availability, counts=status_counts(inputs.availability)),
+                           "eval-case")
+    shifts, nurses = missing_inputs(inputs)
+    return {"outcome": record.outcome, "drafts": len(record.drafts), "invented_assignments": 0,
+            "listed_missing": listed_all_missing(record.needs_manual_review, shifts, nurses),
+            "stop_reason": record.stop_reason}
 
 
 def case_13() -> Dict[str, Any]:
@@ -96,11 +140,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     scenario, planted = LIVE_CASES[args.case]
     for run in range(1, args.runs + 1):
         print(f"--- {args.case} run {run} of {args.runs} ---")
-        if args.case == "case_07":
-            inputs = load_inputs()
+        inputs = load_inputs() if scenario == "mock" else load_scenario(scenario)[0]
+        if args.case in COMPARE_CASES:
             print("baseline:", json.dumps(run_baseline(inputs)))
+        if any(missing_inputs(inputs)):  # required input is missing: the team must stop before the Scheduler
+            print("team:    ", json.dumps(run_team_missing(scenario)))
+            continue
         result = run_team(scenario, planted)
-        print("team:    ", json.dumps(summarize(result)))
+        print("team:    ", json.dumps(summarize(result, inputs)))
         if args.runs == 1:
             print(format_report(result))
     return 0
