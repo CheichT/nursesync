@@ -67,13 +67,16 @@ def test_agent_flag_and_ratio_mismatch_become_needs_review_with_value_kept():
     assert "ratio" in result.rows[1].note and result.rows[1].nurses_needed == 9
 
 
-def test_duplicate_and_unreadable_rows_are_missing():
+def test_a_duplicate_row_is_missing_and_a_malformed_row_rejects_the_whole_result():
     rows = _raw("demand.json")
     rows.append(dict(rows[0]))
-    rows[2]["nurses_needed"] = -3
     result = stamp_demand(rows, _snapshot())
     assert result.rows[0].status == "missing" and "more than one" in result.rows[0].note
-    assert result.rows[2].status == "missing" and "could not be read" in result.rows[2].note
+    assert result.rows[1].status == "ok"
+    rows = _raw("demand.json")
+    rows[2]["nurses_needed"] = -3
+    result = stamp_demand(rows, _snapshot())
+    assert result.counts.missing == 14 and "row 3, field nurses_needed" in result.rows[0].note
 
 
 def test_availability_reason_conflict_is_needs_review():
