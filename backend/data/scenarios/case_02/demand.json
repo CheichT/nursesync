@@ -1,0 +1,128 @@
+[
+  {
+    "unit": "7W",
+    "date": "2026-11-02",
+    "shift": "day",
+    "patient_count": 24,
+    "nurses_needed": 5,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-02",
+    "shift": "night",
+    "patient_count": 18,
+    "nurses_needed": 4,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-03",
+    "shift": "day",
+    "patient_count": 23,
+    "nurses_needed": 5,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-03",
+    "shift": "night",
+    "patient_count": 19,
+    "nurses_needed": 4,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-04",
+    "shift": "day",
+    "patient_count": 22,
+    "nurses_needed": 5,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-04",
+    "shift": "night",
+    "patient_count": 18,
+    "nurses_needed": 4,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-05",
+    "shift": "day",
+    "patient_count": 24,
+    "nurses_needed": 5,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-05",
+    "shift": "night",
+    "patient_count": 21,
+    "nurses_needed": 5,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-06",
+    "shift": "day",
+    "patient_count": 25,
+    "nurses_needed": 5,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-06",
+    "shift": "night",
+    "patient_count": 21,
+    "nurses_needed": 5,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-07",
+    "shift": "day",
+    "patient_count": 21,
+    "nurses_needed": 5,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-07",
+    "shift": "night",
+    "patient_count": 17,
+    "nurses_needed": 4,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-08",
+    "shift": "day",
+    "patient_count": 16,
+    "nurses_needed": 4,
+    "status": "ok",
+    "note": ""
+  },
+  {
+    "unit": "7W",
+    "date": "2026-11-08",
+    "shift": "night",
+    "patient_count": 16,
+    "nurses_needed": 4,
+    "status": "ok",
+    "note": ""
+  }
+]
