@@ -46,6 +46,11 @@ class AvailabilityAgent(Protocol):
         """Rows with nurse_id, date, shift, available, reason, and an optional `flag` (text)."""
 
 
+def snapshot_id_for(case_id: str) -> str:
+    """The snapshot ID a case uses. Build the Scheduler with this, so its drafts carry the right label."""
+    return f"snap-{case_id}"
+
+
 def week_dates(week_start: str) -> List[str]:
     start = date.fromisoformat(week_start)
     return [(start + timedelta(days=i)).isoformat() for i in range(7)]
@@ -162,8 +167,10 @@ def make_snapshot(roster: List[Nurse], rules: RulesConfig, unit: str, week_start
 def run_case(demand_agent: DemandAgent, availability_agent: AvailabilityAgent, scheduler: Scheduler,
              rules_checker: RulesChecker, roster: List[Nurse], rules: RulesConfig, unit: str,
              week_start: str, case_id: str, parent_case_id: Optional[str] = None,
-             now: Optional[Callable[[], datetime]] = None) -> CaseRecord:
-    snapshot = make_snapshot(roster, rules, unit, week_start, f"snap-{case_id}", now)
+             now: Optional[Callable[[], datetime]] = None, snapshot_id: Optional[str] = None) -> CaseRecord:
+    """`snapshot_id` defaults to snapshot_id_for(case_id). The Scheduler must be built with the same ID,
+    or its drafts are rejected as mislabeled."""
+    snapshot = make_snapshot(roster, rules, unit, week_start, snapshot_id or snapshot_id_for(case_id), now)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         demand_job = pool.submit(_run_agent, demand_agent, snapshot)

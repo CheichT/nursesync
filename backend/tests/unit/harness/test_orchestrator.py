@@ -12,7 +12,7 @@ from app.harness.stand_ins import (
     ScriptedDemandAgent,
     ScriptedScheduler,
 )
-from app.orchestrator import run_case, stamp_demand
+from app.orchestrator import run_case, snapshot_id_for, stamp_demand
 
 WEEK = "2026-11-02"
 
@@ -29,7 +29,7 @@ def _run(demand=None, availability=None, case_id="case-1"):
     return run_case(
         ScriptedDemandAgent(_raw("demand.json") if demand is None else demand),
         ScriptedAvailabilityAgent(_raw("availability.json") if availability is None else availability),
-        ScriptedScheduler([reference], case_id=case_id, snapshot_id=f"snap-{case_id}"),
+        ScriptedScheduler([reference], case_id=case_id, snapshot_id=snapshot_id_for(case_id)),
         HintingRulesChecker(), inputs.roster, inputs.rules, "7W", WEEK, case_id,
     )
 
@@ -91,7 +91,7 @@ def test_agents_cannot_change_the_snapshot():
     inputs = load_inputs()
     reference = Draft(**json.loads((Path(DEFAULT_DATA) / "reference_draft.json").read_text()))
     rec = run_case(Tamper(_raw("demand.json")), ScriptedAvailabilityAgent(_raw("availability.json")),
-                   ScriptedScheduler([reference], snapshot_id="snap-case-1"), HintingRulesChecker(),
+                   ScriptedScheduler([reference], snapshot_id=snapshot_id_for("case-1")), HintingRulesChecker(),
                    inputs.roster, inputs.rules, "7W", WEEK, "case-1")
     assert rec.availability_result.counts.ok == 336
 
@@ -108,3 +108,21 @@ def _snapshot():
     from app.orchestrator import make_snapshot
     inputs = load_inputs()
     return make_snapshot(inputs.roster, inputs.rules, "7W", WEEK, "snap-x")
+
+
+def test_snapshot_id_can_be_chosen_by_the_caller():
+    inputs = load_inputs()
+    reference = Draft(**json.loads((Path(DEFAULT_DATA) / "reference_draft.json").read_text()))
+    rec = run_case(ScriptedDemandAgent(_raw("demand.json")), ScriptedAvailabilityAgent(_raw("availability.json")),
+                   ScriptedScheduler([reference], snapshot_id="snap-custom"), HintingRulesChecker(),
+                   inputs.roster, inputs.rules, "7W", WEEK, "case-1", snapshot_id="snap-custom")
+    assert rec.snapshot_id == "snap-custom" and rec.outcome == "passed"
+
+
+def test_a_scheduler_with_the_wrong_snapshot_id_fails_every_round():
+    inputs = load_inputs()
+    reference = Draft(**json.loads((Path(DEFAULT_DATA) / "reference_draft.json").read_text()))
+    rec = run_case(ScriptedDemandAgent(_raw("demand.json")), ScriptedAvailabilityAgent(_raw("availability.json")),
+                   ScriptedScheduler([reference], snapshot_id="phase1-snapshot"), HintingRulesChecker(),
+                   inputs.roster, inputs.rules, "7W", WEEK, "case-1")
+    assert rec.state == "failed" and all("labeled" in r.error for r in rec.rounds)
