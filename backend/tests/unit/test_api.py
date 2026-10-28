@@ -174,6 +174,53 @@ def test_change_demand_refusals(live_client, store):
     assert store.load("demo-needs-review").status == "waiting_approval"
 
 
+# --- call-outs ------------------------------------------------------------------------------------------------
+
+CALL_OUT = {"call_outs": [{"nurse_id": "N008", "date": "2026-11-02", "shift": "day"}]}
+
+
+def test_call_out_is_off_without_live_agents_and_changes_nothing(client, store):
+    off = client.post("/api/cases/demo-passed/call-out", json=CALL_OUT)
+    assert off.status_code == 503 and "NURSESYNC_LIVE=1" in off.json()["message"]
+    assert store.load("demo-passed").status == "waiting_approval"
+
+
+def test_call_out_starts_a_child_case_and_retires_the_old_one(live_client, store):
+    done = live_client.post("/api/cases/demo-passed/call-out", json={**CALL_OUT, "new_case_id": "demo-callout-x"})
+    assert done.status_code == 200
+    old, child = done.json()["old"], done.json()["child"]
+    assert (old["status"], old["newer_case_id"]) == ("out_of_date", "demo-callout-x")
+    assert (child["case_id"], child["trigger"], child["parent_case_id"]) == ("demo-callout-x", "call_out", "demo-passed")
+    assert child["callouts"][0]["nurse_id"] == "N008" and child["callouts"][0]["reported_at"]
+    assert store.load("demo-passed").status == "out_of_date" and store.exists("demo-callout-x")
+
+
+def test_call_out_refusals_spend_nothing(store, tmp_path):
+    from app.usage import UsageMeter
+    meter = UsageMeter(tmp_path / "usage.json", max_per_day=5)
+    c = local_client(create_app(store, scripted, HintingRulesChecker(), usage=meter))
+    bad = [
+        ({"call_outs": [{"nurse_id": "N999", "date": "2026-11-02", "shift": "day"}]}, "not on the roster"),
+        ({"call_outs": [{"nurse_id": "N008", "date": "2027-01-01", "shift": "day"}]}, "outside the week"),
+        ({**CALL_OUT, "new_case_id": "demo-needs-review"}, "already exists"),
+    ]
+    for body, text in bad:
+        r = c.post("/api/cases/demo-passed/call-out", json=body)
+        assert r.status_code == 409 and text in r.json()["message"]
+    assert c.post("/api/cases/demo-passed/call-out", json={"call_outs": []}).status_code == 422
+    assert c.post("/api/cases/no-such-case/call-out", json=CALL_OUT).status_code == 404
+    assert meter.snapshot()["remaining"] == 5 and store.load("demo-passed").status == "waiting_approval"
+
+
+def test_call_out_counts_against_the_daily_cap(store, tmp_path):
+    from app.usage import UsageMeter
+    meter = UsageMeter(tmp_path / "usage.json", max_per_day=1)
+    c = local_client(create_app(store, scripted, HintingRulesChecker(), usage=meter))
+    assert c.post("/api/cases/demo-passed/call-out", json=CALL_OUT).status_code == 200
+    capped = c.post("/api/cases/demo-needs-review/call-out", json=CALL_OUT)
+    assert capped.status_code == 429 and store.load("demo-needs-review").status == "waiting_approval"
+
+
 # --- bad input, errors, and the safety settings ----------------------------------------------------------------
 
 
