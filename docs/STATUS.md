@@ -73,19 +73,20 @@ are free.
 
 Phase 1 evals 1, 4, 5, 6, 7, 13, 14 pass (3 runs each). Cases 2 and 3 pass but are **ties** with the single-agent baseline
 (case 3: both handle missing data honestly; the team stops, the baseline builds a partial draft). Case 10 (late
-call-out) passed one live run: replaced the called-out nurse in 1 round, 0 violations, no locked changes. Kerrian is
-running case 10 three times.
+call-out) passed three live runs (Kerrian, 2026-10-28): replaced the called-out nurse in 1 round each, 0 violations, no
+locked changes. See `backend/evals/phase1/RESULTS.md`.
 
 ## What is left
 
-- Live runs of evals 2 and 10 for the call-out flow, then **a final run of every eval against the baseline**.
+- Final full-suite vs baseline: **done 2026-10-28** (see `backend/evals/phase1/RESULTS.md` “Final suite”). Case 10 needed a re-run after transient connection errors.
 - API: apply a call-out through the API (costs money; same guards and the daily cap apply); choose roster and rules by
   the case's unit. (Starting a weekly run and the daily cap on paid operations are done.)
 - Real Shift Board data in place of mock files; Availability batching for units of about 50 nurses (output is cut off
   and rows become `missing`, never guessed); wire `get_callouts` into the Availability agent for weekly runs.
 - A call-out after a case is approved (the PRD only covers one still waiting); a login.
-- Kerrian: an "Agent notes" block for `unusual` (plain text), case 10 runs and card, a `models.py` sign-off note.
-- Housekeeping: accept the PRD suggestions, re-export the PRD PDF (the repo copy is stale), `cheich/agent-prompts-v0`
+- Kerrian leftovers from 2026-10-28: Agent notes for `unusual`, case 10 card + ×3 RESULTS, and contract sign-off notes
+  on `models.py` / `case_record.py` (shipped on her follow-up PR).
+- Housekeeping: PRD suggested edits accepted (2026-10-28); PRD PDF re-exported into the repo root. `cheich/agent-prompts-v0`
   is an old unmerged branch.
 
 ## How we work

@@ -1,12 +1,12 @@
-"""DRAFT: both owners must review before use.
+"""Phase 1 handoff forms.
 
-The handoff formats: the fixed "forms" the agents and the checking code pass to each other.
-Owner: Cheich (formats), reviewed by Kerrian.
+Owner: Cheich (formats). **Kerrian Gordon signed off 2026-10-28** (field names and meanings match the PRD
+sections she owns prompts/evals against). No form fields were changed in that sign-off.
 
 Source of truth: the PRD (Google Doc), sections 3b "Handoff format", "Phase 1 input files",
 "Draft format" and "Violation format". If this file and the PRD disagree, the PRD wins.
 Field names match the PRD exactly (snake_case). Only the Phase 1 forms are here.
-The case record and the snapshot are Phase 2, so they are not here yet.
+The case record and the snapshot are Phase 2 (`case_record.py`).
 
 Dates and times are adjusted automatically when the meaning is unambiguous ("7:00" becomes "07:00",
 "7pm" becomes "19:00", "2026-11-2" becomes "2026-11-02") and rejected otherwise ("25:99", "11/02/2026").

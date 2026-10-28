@@ -275,6 +275,7 @@ export default function ApprovalView({ showToast }) {
   const demandFlags = (record?.demand_result?.rows || []).filter((r) => r.status !== "ok");
   const availFlags = (record?.availability_result?.rows || []).filter((r) => r.status !== "ok");
   const nmr = record?.needs_manual_review || [];
+  const unusual = (record?.unusual || []).filter((n) => typeof n === "string" && n.trim());
   const gaps = draft?.open_gaps || [];
   const soft = record?.soft_tradeoffs || [];
   const hard = record?.open_violations || [];
@@ -575,6 +576,16 @@ export default function ApprovalView({ showToast }) {
           </div>
 
           <h3 className="section-label">Attention</h3>
+          <AttentionList title="Agent notes" empty={!unusual.length}>
+            {unusual.map((note, i) => (
+              <li key={`unusual-${i}`}>{note}</li>
+            ))}
+          </AttentionList>
+          {unusual.length > 0 && (
+            <p className="muted small">
+              Agent notes are advisory plain text only. They do not decide pass or fail.
+            </p>
+          )}
           <AttentionList title="Demand flags" empty={!demandFlags.length}>
             {demandFlags.map((r) => (
               <li key={`d-${r.date}-${r.shift}`}>
@@ -641,7 +652,8 @@ export default function ApprovalView({ showToast }) {
               </li>
             ))}
           </AttentionList>
-          {!demandFlags.length &&
+          {!unusual.length &&
+            !demandFlags.length &&
             !availFlags.length &&
             !nmr.length &&
             !gaps.length &&
