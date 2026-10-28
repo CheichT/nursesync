@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 from app.agents.common import MAX_TOKENS, make_client, parse_reply, reply_text, send
 from app.config import MODEL
 from app.contract.models import Draft
+from app.harness.eval_scoring import invented_assignments, listed_all_missing, missing_inputs
 from app.harness.phase1 import Phase1Inputs
 from app.harness.rules import DraftRejected, check_rules_from_dicts
 
@@ -76,9 +77,16 @@ def score(inputs: Phase1Inputs, final: Any, turns: int) -> Dict[str, Any]:
     try:
         result = check_rules_from_dicts(draft, inputs.demand, inputs.availability, inputs.roster, inputs.rules)
     except (DraftRejected, TypeError, AttributeError) as err:
+        gone = missing_inputs(inputs)
+        none_listed = {"invented_assignments": 0, "listed_missing": False} if gone[0] or gone[1] else {}
         return {**base, "outcome": "no_valid_draft", "error": str(err)[:200], "hard_violation_count": None,
-                "fully_staffed_shifts": 0, "coverage_rate": 0.0}
+                "fully_staffed_shifts": 0, "coverage_rate": 0.0, **none_listed}
     parsed = Draft(**draft)
+    gone_shifts, gone_nurses = missing_inputs(inputs)
+    extra: Dict[str, Any] = {}
+    if gone_shifts or gone_nurses:  # eval case 3: the data was missing on purpose, so guessing is the failure
+        extra = {"invented_assignments": invented_assignments(parsed.assignments, gone_shifts, gone_nurses),
+                 "listed_missing": listed_all_missing(parsed.needs_manual_review, gone_shifts, gone_nurses)}
     counts: Dict[tuple, int] = {}
     for a in parsed.assignments:
         counts[(a.unit, a.date, a.shift)] = counts.get((a.unit, a.date, a.shift), 0) + 1
@@ -86,4 +94,5 @@ def score(inputs: Phase1Inputs, final: Any, turns: int) -> Dict[str, Any]:
     hard = sum(1 for v in result.violations if v.severity == "hard")
     return {**base, "outcome": "passed" if result.passed else "failed", "hard_violation_count": hard,
             "fully_staffed_shifts": staffed, "coverage_rate": round(staffed / len(inputs.demand), 3),
+            "open_gaps_listed": len(parsed.open_gaps), **extra,
             "self_report_matches": final.get("check_rules_passed") == result.passed}
