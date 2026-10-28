@@ -159,3 +159,47 @@ def test_the_team_summary_carries_the_same_coverage_numbers_as_the_baseline():
     for key in ("fully_staffed_shifts", "shifts_in_week", "coverage_rate", "open_gaps_listed"):
         assert team[key] == base[key], key
     assert "coverage_rate" not in run_eval.summarize(result)  # unchanged when no inputs are given
+
+
+# --- eval case 10 (late call-out) runner ---------------------------------------------------------------------------------
+
+
+def _swap_n006_for_n002():
+    return REFERENCE_DRAFT.model_copy(update={"assignments": [
+        a.model_copy(update={"nurse_id": "N002"}) if (a.nurse_id, a.date, a.shift) == ("N006", "2026-11-04", "day") else a
+        for a in REFERENCE_DRAFT.assignments]})
+
+
+REFERENCE_DRAFT = Draft(**REFERENCE)
+
+
+def test_case_10_passes_when_only_the_called_out_shift_changes():
+    from app.harness.stand_ins import HintingRulesChecker, ScriptedScheduler
+    good = _swap_n006_for_n002()
+    report = run_eval.case_10(lambda cid, sid: ScriptedScheduler([good], case_id=cid, snapshot_id=sid), HintingRulesChecker())
+    assert report["pass"] is True and report["old_status"] == "out_of_date" and report["child_trigger"] == "call_out"
+    assert report["called_out_still_on_shift"] is False and "N002" in report["shift_after"]
+    assert report["locked_changes_rejected"] == 0 and report["hard_violations"] == 0
+    assert sorted(report["kept"]) == ["N001", "N005", "N012", "N015"]  # the four who were not called out stay
+
+
+def test_case_10_fails_when_the_scheduler_changes_a_locked_shift():
+    from app.harness.stand_ins import HintingRulesChecker, ScriptedScheduler
+    sneaky = _swap_n006_for_n002().model_copy(update={"assignments": [
+        a.model_copy(update={"nurse_id": "N003"}) if (a.nurse_id, a.date, a.shift) == ("N008", "2026-11-02", "day") else a
+        for a in _swap_n006_for_n002().assignments]})
+    report = run_eval.case_10(lambda cid, sid: ScriptedScheduler([sneaky], case_id=cid, snapshot_id=sid), HintingRulesChecker())
+    assert report["pass"] is False and report["locked_changes_rejected"] == 3 and report["child_outcome"] != "passed"
+
+
+def test_case_10_fails_when_the_called_out_nurse_stays_on_the_shift():
+    from app.harness.stand_ins import HintingRulesChecker, ScriptedScheduler
+    report = run_eval.case_10(lambda cid, sid: ScriptedScheduler([REFERENCE_DRAFT], case_id=cid, snapshot_id=sid),
+                              HintingRulesChecker())
+    assert report["pass"] is False and report["called_out_still_on_shift"] is True
+
+
+def test_case_10_is_a_choice_on_the_command_line(monkeypatch, capsys):
+    monkeypatch.setattr(run_eval, "case_10", lambda: {"pass": True, "note": "fake"})
+    assert run_eval.main(["case_10"]) == 0
+    assert "case_10 run 1 of 1" in capsys.readouterr().out

@@ -1,8 +1,9 @@
-"""Run an eval card. Cases 1, 2, 4, 5, 6, 7 call the live agents (cents to about a dollar per run); 3, 13 and 14
-are code-only for the team (case 3 also runs the live baseline).
+"""Run an eval card. Cases 1, 2, 4, 5, 6, 7 and 10 call the live agents (cents to about a dollar per run); 3, 13 and
+14 are code-only for the team (case 3 also runs the live baseline).
 
 Usage: cd backend && ../.venv/bin/python -m app.run_eval case_04 [--runs 3]
-Cases: case_01 case_02 case_03 case_04 case_05 case_06 case_07 case_13 case_14.
+Cases: case_01 case_02 case_03 case_04 case_05 case_06 case_07 case_10 case_13 case_14.
+Case 10 (late call-out) builds a clean weekly case with scripted agents (free), then the live Scheduler handles the call-out.
 Cases 2, 3 and 7 run the single-agent baseline and the team on the same inputs, so you can compare them.
 See backend/evals/phase1/ for what each should show.
 Pass or fail always comes from check_rules, never from an agent.
@@ -18,12 +19,20 @@ from app.agents.baseline.agent import run_baseline
 from app.agents.rules_checker.agent import AnthropicRulesChecker
 from app.agents.scheduler.agent import AnthropicScheduler
 from app.contract.case_record import AvailabilityResult, DemandResult, Snapshot
-from app.contract.models import Draft
+from app.callouts import run_call_out
+from app.contract.models import Callout, Draft
 from app.harness.eval_scoring import listed_all_missing, missing_inputs
 from app.harness.phase1 import DEFAULT_DATA, Phase1Result, format_report, load_inputs, load_scenario, run_phase1
-from app.orchestrator import make_snapshot, schedule_case, status_counts
+from app.orchestrator import make_snapshot, run_case, schedule_case, snapshot_id_for, status_counts
 from app.harness.rules import check_rules
-from app.harness.stand_ins import DroppingRulesChecker, HintingRulesChecker, ScriptedScheduler, without
+from app.harness.stand_ins import (
+    DroppingRulesChecker,
+    HintingRulesChecker,
+    ScriptedAvailabilityAgent,
+    ScriptedDemandAgent,
+    ScriptedScheduler,
+    without,
+)
 
 LIVE_CASES = {"case_01": ("mock", False), "case_02": ("case_02", False), "case_03": ("case_03", False),
               "case_04": ("case_04", True), "case_05": ("case_05", False), "case_06": ("case_06", True),
@@ -94,6 +103,52 @@ def run_team_missing(name: str) -> Dict[str, Any]:
             "stop_reason": record.stop_reason}
 
 
+def _raw(name: str) -> List[Dict[str, Any]]:
+    rows = json.loads((DEFAULT_DATA / name).read_text())
+    return [{k: v for k, v in r.items() if k not in ("status", "note")} for r in rows]
+
+
+def case_10(make_scheduler: Optional[Callable[[str, str], Any]] = None,
+            rules_checker: Optional[Any] = None) -> Dict[str, Any]:
+    """Eval case 10, late call-out. A clean weekly case is waiting for approval (built free, with scripted agents).
+    N006 calls out of Wed 2026-11-04 day. The Scheduler (live unless told otherwise) must rebuild only that shift with
+    the rest of the week locked. Pass: the old case is out_of_date, the new case passes check_rules for the whole week,
+    N006 is not on the shift, and nothing locked was changed (code rejects a draft that does, and that shows up as a
+    round error)."""
+    inputs = load_inputs()
+    ref = Draft(**json.loads((DEFAULT_DATA / "reference_draft.json").read_text()))
+    parent = run_case(ScriptedDemandAgent(_raw("demand.json")), ScriptedAvailabilityAgent(_raw("availability.json")),
+                      ScriptedScheduler([ref], case_id="eval-parent", snapshot_id=snapshot_id_for("eval-parent")),
+                      HintingRulesChecker(), inputs.roster, inputs.rules, "7W", "2026-11-02", "eval-parent")
+    built: List[Any] = []
+
+    def live_scheduler(case_id: str, snapshot_id: str) -> Any:
+        built.append(AnthropicScheduler(case_id=case_id, snapshot_id=snapshot_id))
+        return built[-1]
+
+    call = Callout(nurse_id="N006", date="2026-11-04", shift="day", reported_at="2026-11-03T22:15:00")
+    old, child = run_call_out(parent, [call], "eval-call-out", make_scheduler or live_scheduler,
+                              rules_checker or AnthropicRulesChecker(), inputs.roster, inputs.rules)
+    on_shift = sorted(a.nurse_id for a in (child.final_draft.assignments if child.final_draft else [])
+                      if (a.date, a.shift) == ("2026-11-04", "day"))
+    before = sorted(a.nurse_id for a in ref.assignments if (a.date, a.shift) == ("2026-11-04", "day"))
+    out_tokens = sum(c.get("output_tokens") or 0 for s in built for c in s.calls)
+    report = {
+        "old_status": old.status, "newer_case_id": old.newer_case_id, "child_trigger": child.trigger,
+        "child_outcome": child.outcome, "rounds_used": child.rounds_used,
+        "round_errors": [r.error for r in child.rounds if r.error],
+        "locked_changes_rejected": sum("changed locked assignments" in r.error for r in child.rounds),
+        "hard_violations": len(child.open_violations), "called_out_still_on_shift": "N006" in on_shift,
+        "shift_before": before, "shift_after": on_shift, "kept": [n for n in on_shift if n in before],
+        "suggestions": [f"{x.nurse_id}: {x.reason}" for x in (child.final_draft.suggestions if child.final_draft else [])],
+        "scheduler_calls": sum(len(s.calls) for s in built), "scheduler_output_tokens": out_tokens,
+    }
+    report["pass"] = (old.status == "out_of_date" and child.status == "waiting_approval"
+                      and child.outcome == "passed" and not report["called_out_still_on_shift"]
+                      and child.final_draft is not None)
+    return report
+
+
 def case_13() -> Dict[str, Any]:
     """The Rules Checker hides a violation. The harness must keep the code's full list."""
     inputs = load_inputs()
@@ -128,7 +183,7 @@ def case_14() -> Dict[str, Any]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("case", choices=sorted(list(LIVE_CASES) + ["case_13", "case_14"]))
+    parser.add_argument("case", choices=sorted(list(LIVE_CASES) + ["case_10", "case_13", "case_14"]))
     parser.add_argument("--runs", type=int, default=1, help="how many times to run it (the cards ask for 3)")
     args = parser.parse_args(argv)
 
@@ -136,6 +191,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         report = case_13() if args.case == "case_13" else case_14()
         print(json.dumps(report, indent=2))
         return 0 if report["pass"] else 1
+
+    if args.case == "case_10":
+        reports = []
+        for run in range(1, args.runs + 1):
+            print(f"--- case_10 run {run} of {args.runs} ---")
+            reports.append(case_10())
+            print(json.dumps(reports[-1], indent=2))
+        return 0 if all(r["pass"] for r in reports) else 1
 
     scenario, planted = LIVE_CASES[args.case]
     for run in range(1, args.runs + 1):
