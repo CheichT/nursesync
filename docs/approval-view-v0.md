@@ -110,9 +110,9 @@ Manager control on the Approve AI draft tab (API connected only).
 
 | Step | Behavior |
 | --- | --- |
-| **Start weekly run** | Show “N of M paid runs left today” from `GET /api/usage`. Disable when remaining is 0. Confirm: “This runs the live agents and costs real money. Start?” Then `POST /api/runs` with `{ unit, week_start }` (JSON content type). Defaults for mock data: unit `7W`, week `2026-11-02` (Monday). |
+| **Start weekly run** | Show “N of M paid runs left today” from `GET /api/usage`. Disable when remaining is 0. Confirm with the cost and runs left (“about $0.50–$1.50 … N of M paid runs left today”) Then `POST /api/runs` with `{ unit, week_start }` (JSON content type). Defaults for mock data: unit `7W`, week `2026-11-02` (Monday). |
 | **Poll** | Every 5 seconds, `GET /api/runs/{run_id}` until `state` is `done` or `failed`. Show “Running…” and a “run in progress” notice. Show the server `message` as-is (plain text). |
-| **Reload mid-run** | On connect, if a case is still `building`, show the in-progress notice, select that case, and resume polling when `GET /api/runs/{id}` still knows the run. |
+| **Reload mid-run** | On connect, if a case is still `building` and `GET /api/runs/{id}` knows the run, show the in-progress notice, select that case, and resume polling. If there is no such run (a call-out or demand change in flight, or a leftover after a restart), show no notice. |
 | **Errors** | 409 / 422 / 429 / 503: show the server `message` as-is. Do not retry in a loop. |
 | **When done** | Show outcome, refresh the case list, and open the new `case_id`. Stop polling if the user leaves the tab. |
 
