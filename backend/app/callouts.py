@@ -81,11 +81,17 @@ def run_call_out(parent: CaseRecord, callouts: List[Callout], new_case_id: str, 
                if (a.date, a.shift) in affected_set and (a.nurse_id, a.date, a.shift) not in by_row]
 
     snapshot = make_snapshot(roster, rules, parent.unit, parent.week_start, snapshot_id_for(new_case_id), now)
+    scheduler = make_scheduler(new_case_id, snapshot.snapshot_id)  # may fail: do it before saving anything
     if store is not None:
         store.save(building_record(snapshot, new_case_id, parent.case_id, "call_out", affected))
-    child = schedule_case(make_scheduler(new_case_id, snapshot.snapshot_id), rules_checker, snapshot, demand,
-                          availability, new_case_id, parent.case_id, trigger="call_out", affected_shifts=affected,
-                          store=store, locked_assignments=locked, earlier_assignments=earlier, callouts=unique)
+    try:
+        child = schedule_case(scheduler, rules_checker, snapshot, demand, availability, new_case_id, parent.case_id,
+                              trigger="call_out", affected_shifts=affected, store=store, locked_assignments=locked,
+                              earlier_assignments=earlier, callouts=unique)
+    except BaseException:
+        if store is not None:
+            store.discard_building(new_case_id)
+        raise
     old = mark_out_of_date(parent, new_case_id)
     if store is not None:
         store.save(old)

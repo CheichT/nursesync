@@ -402,16 +402,20 @@ def run_case(demand_agent: DemandAgent, availability_agent: AvailabilityAgent, s
     snapshot = make_snapshot(roster, rules, unit, week_start, snapshot_id or snapshot_id_for(case_id), now)
     if store is not None:
         store.save(building_record(snapshot, case_id, parent_case_id))
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            demand_job = pool.submit(_run_agent, demand_agent, snapshot)
+            availability_job = pool.submit(_run_agent, availability_agent, snapshot)
+            demand_raw, demand_err = demand_job.result()
+            availability_raw, availability_err = availability_job.result()
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        demand_job = pool.submit(_run_agent, demand_agent, snapshot)
-        availability_job = pool.submit(_run_agent, availability_agent, snapshot)
-        demand_raw, demand_err = demand_job.result()
-        availability_raw, availability_err = availability_job.result()
+        demand = stamp_demand(demand_raw, snapshot, demand_err)
+        availability = stamp_availability(availability_raw, snapshot, availability_err, leave)
 
-    demand = stamp_demand(demand_raw, snapshot, demand_err)
-    availability = stamp_availability(availability_raw, snapshot, availability_err, leave)
-
-    extra = unknown_nurse_review(availability_raw, snapshot) if not availability_err else []
-    return schedule_case(scheduler, rules_checker, snapshot, demand, availability, case_id, parent_case_id,
-                         extra_review=extra, store=store)
+        extra = unknown_nurse_review(availability_raw, snapshot) if not availability_err else []
+        return schedule_case(scheduler, rules_checker, snapshot, demand, availability, case_id, parent_case_id,
+                             extra_review=extra, store=store)
+    except BaseException:
+        if store is not None:
+            store.discard_building(case_id)  # a failed run must not leave a ghost case
+        raise
