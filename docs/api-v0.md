@@ -36,6 +36,7 @@ Through the Vite proxy these all hold as long as you open the app at `localhost:
 | Method and path | Body | Returns |
 | --- | --- | --- |
 | `GET /api/health` | | `{ "ok": true, "live_agents": false }` |
+| `GET /api/roster` | | `{ "nurses": [{ "nurse_id", "name" }] }`. Lets the UI show names instead of ids. Free. Mock roster for now. |
 | `GET /api/cases` | | `{ "cases": [summary...], "unreadable": [] }`, newest first. A summary has `case_id, status, outcome, unit, week_start, start_time, trigger, parent_case_id, newer_case_id`. |
 | `GET /api/cases/{case_id}` | | The full `CaseRecord` (same shape as `docs/sample-cases/*.json`). |
 | `POST /api/cases/{case_id}/approve` | `{ "acknowledge_open_issues": false }` (the body is optional) | The updated `CaseRecord`. |
