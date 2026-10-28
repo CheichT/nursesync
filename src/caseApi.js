@@ -75,6 +75,20 @@ export async function changeDemand(caseId, changes, newCaseId = null) {
   });
 }
 
+/** Report call-outs on a case waiting for approval. Needs NURSESYNC_LIVE=1. Costs money (~$0.15–$1.20). */
+export async function reportCallOut(caseId, callOuts) {
+  return request(`/api/cases/${encodeURIComponent(caseId)}/call-out`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ call_outs: callOuts }),
+  });
+}
+
+/** Nurse ids and names, so the view can show names. Free. */
+export async function getRoster() {
+  return request("/api/roster");
+}
+
 /** Start a weekly run (background). Needs NURSESYNC_LIVE=1. Costs money (~$0.50–$1.50). */
 export async function startWeeklyRun(unit, weekStart, caseId = null) {
   const body = { unit, week_start: weekStart };

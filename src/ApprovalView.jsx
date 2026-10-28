@@ -19,6 +19,8 @@ import {
   approveCase,
   rejectCase,
   changeDemand,
+  reportCallOut,
+  getRoster,
   startWeeklyRun,
   getRun,
   getUsage,
@@ -193,12 +195,16 @@ export default function ApprovalView({ showToast }) {
   const [usage, setUsage] = useState(null);
   const [runStatus, setRunStatus] = useState(null);
   const [runError, setRunError] = useState("");
+  const [names, setNames] = useState({});
+  const [callOutOpen, setCallOutOpen] = useState(false);
+  const [callOutPick, setCallOutPick] = useState("");
   const runPollRef = useRef(null);
 
   const resetDecisionUi = () => {
     setAckOpenIssues(false);
     setActionError("");
     setDemandOpen(false);
+    setCallOutOpen(false);
   };
 
   const refreshUsage = useCallback(async () => {
@@ -265,6 +271,40 @@ export default function ApprovalView({ showToast }) {
     }
   };
 
+  /** Name with id, for sentences. Falls back to the id when the roster is not loaded. */
+  const who = (id) => (names[id] ? `${names[id]} (${id})` : id);
+
+  const loadNames = async () => {
+    try {
+      const data = await getRoster();
+      setNames(Object.fromEntries((data.nurses || []).map((n) => [n.nurse_id, n.name])));
+    } catch {
+      setNames({}); // the view still works with ids
+    }
+  };
+
+  /** After a reload, pick up a weekly run that is still going (run id is the case id). */
+  const resumeRunIfAny = async () => {
+    try {
+      const data = await listCases();
+      for (const c of (data.cases || []).filter((x) => x.status === "building")) {
+        try {
+          const status = await getRun(c.case_id);
+          if (status.state === "running") {
+            setRunStatus(status);
+            setBusy(true);
+            startRunPoll(status.run_id);
+            return;
+          }
+        } catch {
+          /* not a weekly run (or the server restarted): ignore */
+        }
+      }
+    } catch {
+      /* best effort */
+    }
+  };
+
   const boot = async () => {
     stopRunPoll();
     setRunStatus(null);
@@ -290,13 +330,16 @@ export default function ApprovalView({ showToast }) {
         : "Connected to local case API. Live agents off — approve/reject work; weekly run and change demand need NURSESYNC_LIVE=1."
     );
     await refreshUsage();
+    loadNames();
     try {
       await refreshCaseList();
     } catch (err) {
       setSource("samples");
       setApiNote(`API health ok but listing cases failed: ${err.message}`);
       await loadSample("passed");
+      return;
     }
+    await resumeRunIfAny();
   };
 
   useEffect(() => {
@@ -397,8 +440,9 @@ export default function ApprovalView({ showToast }) {
   };
 
   const runInProgress = runStatus?.state === "running";
+  const outOfRuns = Boolean(usage?.capped && usage.remaining === 0);
   const startRunDisabled =
-    busy || runInProgress || source !== "api" || !runUnit.trim() || !runWeekStart.trim();
+    busy || runInProgress || outOfRuns || source !== "api" || !runUnit.trim() || !runWeekStart.trim();
 
   const openIssues = record ? hasOpenIssues(record) : false;
   const draft = record?.final_draft;
@@ -540,10 +584,43 @@ export default function ApprovalView({ showToast }) {
     }
   };
 
+  const onCallOutSubmit = async () => {
+    setActionError("");
+    const [nurseId, date, shift] = callOutPick.split("|");
+    if (!nurseId) {
+      setActionError("Pick the nurse and shift that were called out.");
+      return;
+    }
+    const left =
+      usage?.capped && usage.remaining != null ? ` ${usage.remaining} paid operation(s) left today.` : "";
+    const ok = window.confirm(
+      `Report a call-out for ${who(nurseId)} on ${date} ${shift}? This reruns the live Scheduler, costs about $0.15–$1.20, and takes a few minutes. This case becomes out of date.${left}`
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const { child } = await reportCallOut(record.case_id, [{ nurse_id: nurseId, date, shift }]);
+      setCallOutOpen(false);
+      setCallOutPick("");
+      setRecord(child);
+      setAckOpenIssues(false);
+      await refreshCaseList(child.case_id);
+      await refreshUsage();
+      showToast?.(`Opened new case ${child.case_id} after the call-out`);
+    } catch (err) {
+      setActionError(err.message || "Call-out failed");
+      await refreshUsage();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const approveDisabled =
     busy || !record || !canTryApprove(record) || (openIssues && !ackOpenIssues);
   const rejectDisabled = busy || !record || !canReject(record);
   const demandDisabled = busy || !record || !canChangeDemand(record);
+  const callOutDisabled =
+    busy || source !== "api" || !liveAgents || outOfRuns || !record || !draft || !canChangeDemand(record);
 
   return (
     <div className="panel approval-panel">
@@ -661,7 +738,9 @@ export default function ApprovalView({ showToast }) {
                 ? "Connect to the local API first"
                 : !liveAgents
                   ? "Server needs NURSESYNC_LIVE=1"
-                  : runInProgress
+                  : outOfRuns
+                    ? "No paid runs left today"
+                    : runInProgress
                     ? "A run is already in progress"
                     : "Start weekly run"
             }
@@ -676,6 +755,12 @@ export default function ApprovalView({ showToast }) {
                   usage.date ? ` · ${usage.date}` : ""
                 }).`
               : "No daily paid-ops cap on this server."}
+          </p>
+        )}
+        {outOfRuns && (
+          <p className="approval-error" role="note">
+            No paid runs left today, so Start weekly run is off. Try again tomorrow, or raise the cap and restart the
+            API.
           </p>
         )}
         {source === "api" && !liveAgents && (
@@ -772,7 +857,7 @@ export default function ApprovalView({ showToast }) {
               <div className="approval-banner soft" role="status">
                 Call-out:{" "}
                 {(record.callouts || [])
-                  .map((c) => `${c.nurse_id} on ${c.date} ${c.shift}`)
+                  .map((c) => `${who(c.nurse_id)} on ${c.date} ${c.shift}`)
                   .join("; ")}
               </div>
             )}
@@ -813,7 +898,7 @@ export default function ApprovalView({ showToast }) {
             {availFlags.map((r) => (
               <li key={`a-${r.nurse_id}-${r.date}-${r.shift}`}>
                 <strong>
-                  {r.status} — {r.nurse_id} {r.date} {r.shift}
+                  {r.status} — {who(r.nurse_id)} {r.date} {r.shift}
                 </strong>
                 : available {String(r.available)}
                 {r.reason && r.reason !== "none" ? ` (${r.reason})` : ""}
@@ -845,14 +930,14 @@ export default function ApprovalView({ showToast }) {
             {hard.map((v, i) => (
               <li key={`h-${v.rule}-${v.date}-${v.shift}-${i}`}>
                 <strong>Hard — {v.rule}</strong>
-                {v.nurse_id ? ` (${v.nurse_id})` : ""} — {v.date} {v.shift}
+                {v.nurse_id ? ` (${who(v.nurse_id)})` : ""} — {v.date} {v.shift}
                 {v.found || v.limit ? `: found ${v.found}, limit ${v.limit}` : ""}
               </li>
             ))}
             {unfixable.map((u, i) => (
               <li key={`u-${u.rule}-${u.date}-${u.shift}-${i}`}>
                 <strong>Unfixable — {u.rule}</strong>
-                {u.nurse_id ? ` (${u.nurse_id})` : ""} — {u.date} {u.shift}: {u.reason}
+                {u.nurse_id ? ` (${who(u.nurse_id)})` : ""} — {u.date} {u.shift}: {u.reason}
               </li>
             ))}
           </AttentionList>
@@ -899,7 +984,9 @@ export default function ApprovalView({ showToast }) {
                         return (
                           <td key={`${d}|${shift}`}>
                             {nurses.length ? (
-                              <span className="approval-nurses">{nurses.join(", ")}</span>
+                              <span className="approval-nurses">
+                                {nurses.map((id) => names[id] || id).join(", ")}
+                              </span>
                             ) : (
                               <span className="muted">—</span>
                             )}
@@ -973,10 +1060,58 @@ export default function ApprovalView({ showToast }) {
               >
                 Change demand
               </button>
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={callOutDisabled}
+                aria-expanded={callOutOpen}
+                onClick={() => setCallOutOpen((v) => !v)}
+                title={
+                  source !== "api" || !liveAgents
+                    ? "Needs the API with live agents (NURSESYNC_LIVE=1)"
+                    : outOfRuns
+                      ? "No paid runs left today"
+                      : "Report a nurse call-out"
+                }
+              >
+                Report call-out
+              </button>
               <button type="button" className="ghost-btn" disabled={rejectDisabled} onClick={onReject}>
                 <XCircle size={14} /> Reject
               </button>
             </div>
+            {callOutOpen && !callOutDisabled && (
+              <div
+                className="approval-banner soft"
+                role="group"
+                aria-label="Report a call-out"
+                onKeyDown={(e) => e.key === "Escape" && !busy && setCallOutOpen(false)}
+              >
+                <label className="approval-sample">
+                  Who called out, and for which shift
+                  <select value={callOutPick} onChange={(e) => setCallOutPick(e.target.value)} disabled={busy}>
+                    <option value="">Pick a nurse and shift…</option>
+                    {[...(draft.assignments || [])]
+                      .sort((a, b) => `${a.date}${a.shift}`.localeCompare(`${b.date}${b.shift}`))
+                      .map((a) => (
+                        <option key={`${a.nurse_id}|${a.date}|${a.shift}`} value={`${a.nurse_id}|${a.date}|${a.shift}`}>
+                          {names[a.nurse_id] || a.nurse_id} — {fmtDay(a.date)} {a.shift}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <button type="button" className="primary-btn" disabled={busy || !callOutPick} onClick={onCallOutSubmit}>
+                  Send call-out
+                </button>
+                <button type="button" className="ghost-btn" disabled={busy} onClick={() => setCallOutOpen(false)}>
+                  Cancel
+                </button>
+                <p className="muted small">
+                  Reruns the live Scheduler (about $0.15–$1.20). The rest of the week stays locked. This case becomes
+                  out of date.
+                </p>
+              </div>
+            )}
             <p className="muted small">
               Decisions save to the local case store when the API is connected. Posting to nurses is out of
               scope for v1.
