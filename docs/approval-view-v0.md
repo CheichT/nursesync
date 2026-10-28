@@ -69,6 +69,7 @@ Show these blocks **before** the full grid. Hide empty blocks.
 
 | Block | Source | Manager sees |
 | --- | --- | --- |
+| Agent notes | case `unusual` | Plain-text lines from the Demand agent (advisory only; never decide pass/fail) |
 | Demand / availability flags | rows where `status` ≠ `ok` | status, note, key fields |
 | Needs manual review | case `needs_manual_review` | `item_type`, `id`, `note` |
 | Open gaps | `final_draft.open_gaps` | Unit, date, shift, needed vs assigned, `gap_reason` |
