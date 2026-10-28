@@ -91,6 +91,12 @@ function DemandChangeModal({ record, onClose, onSubmit }) {
             Set nurses needed for one or more shifts. With a real API this retires this case and opens a
             child run. In this demo, submit jumps to the sample child case when one exists.
           </p>
+          {(record.availability_result?.rows || []).some((r) => r.status === "missing") && (
+            <p className="approval-error" role="note">
+              Availability rows are also missing on this case. Changing demand alone will not fill those;
+              the new case may stop again until a new run supplies availability.
+            </p>
+          )}
           {rows.map((r, i) => (
             <label key={`${r.date}-${r.shift}`}>
               {r.date} {r.shift}
