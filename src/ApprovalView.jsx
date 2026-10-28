@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle, XCircle } from "lucide-react";
 import {
   SAMPLE_CATALOG,
@@ -19,11 +19,18 @@ import {
   approveCase,
   rejectCase,
   changeDemand,
+  startWeeklyRun,
+  getRun,
+  getUsage,
   formatCaseOption,
   CaseApiError,
 } from "./caseApi";
 
 const SHIFT_LABEL = { day: "Day 07:00–19:00", night: "Night 19:00–07:00" };
+/** Mock data only for now (Cheich #46). */
+const DEFAULT_RUN_UNIT = "7W";
+const DEFAULT_RUN_WEEK = "2026-11-02";
+const RUN_POLL_MS = 5000;
 
 function addDays(iso, n) {
   const d = new Date(`${iso}T00:00:00`);
@@ -181,12 +188,33 @@ export default function ApprovalView({ showToast }) {
   const [ackOpenIssues, setAckOpenIssues] = useState(false);
   const [actionError, setActionError] = useState("");
   const [demandOpen, setDemandOpen] = useState(false);
+  const [runUnit, setRunUnit] = useState(DEFAULT_RUN_UNIT);
+  const [runWeekStart, setRunWeekStart] = useState(DEFAULT_RUN_WEEK);
+  const [usage, setUsage] = useState(null);
+  const [runStatus, setRunStatus] = useState(null);
+  const [runError, setRunError] = useState("");
+  const runPollRef = useRef(null);
 
   const resetDecisionUi = () => {
     setAckOpenIssues(false);
     setActionError("");
     setDemandOpen(false);
   };
+
+  const refreshUsage = useCallback(async () => {
+    try {
+      setUsage(await getUsage());
+    } catch {
+      setUsage(null);
+    }
+  }, []);
+
+  const stopRunPoll = useCallback(() => {
+    if (runPollRef.current) {
+      clearInterval(runPollRef.current);
+      runPollRef.current = null;
+    }
+  }, []);
 
   const loadApiCase = useCallback(async (id) => {
     setLoading(true);
@@ -238,11 +266,16 @@ export default function ApprovalView({ showToast }) {
   };
 
   const boot = async () => {
+    stopRunPoll();
+    setRunStatus(null);
     setLoading(true);
     setLoadError("");
+    setRunError("");
+    setBusy(false);
     const health = await checkHealth();
     if (!health.ok) {
       setSource("samples");
+      setUsage(null);
       setApiNote(
         `Local API not reachable (${health.error}). Start: cd backend && ../.venv/bin/python -m app.serve --seed-samples`
       );
@@ -253,9 +286,10 @@ export default function ApprovalView({ showToast }) {
     setLiveAgents(health.live_agents);
     setApiNote(
       health.live_agents
-        ? "Connected to local case API. Live agents ON (change demand costs money)."
-        : "Connected to local case API. Live agents off — approve/reject work; change demand needs NURSESYNC_LIVE=1."
+        ? "Connected to local case API. Live agents ON — weekly runs and change demand cost money."
+        : "Connected to local case API. Live agents off — approve/reject work; weekly run and change demand need NURSESYNC_LIVE=1."
     );
+    await refreshUsage();
     try {
       await refreshCaseList();
     } catch (err) {
@@ -267,8 +301,104 @@ export default function ApprovalView({ showToast }) {
 
   useEffect(() => {
     boot();
+    return () => stopRunPoll();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- connect once on mount
   }, []);
+
+  const onRunFinished = useCallback(
+    async (status) => {
+      stopRunPoll();
+      setRunStatus(status);
+      setBusy(false);
+      await refreshUsage();
+      if (status.state === "done" && status.case_id) {
+        try {
+          await refreshCaseList(status.case_id);
+          showToast?.(status.message || `Weekly run finished (${status.outcome || "done"})`);
+        } catch (err) {
+          setRunError(err.message || "Run finished but could not load the case");
+        }
+      } else if (status.state === "failed") {
+        setRunError(status.message || "Weekly run failed");
+        showToast?.(status.message || "Weekly run failed");
+        try {
+          await refreshCaseList();
+        } catch {
+          /* list refresh is best-effort after failure */
+        }
+      }
+    },
+    [refreshCaseList, refreshUsage, showToast, stopRunPoll]
+  );
+
+  const startRunPoll = useCallback(
+    (runId) => {
+      stopRunPoll();
+      runPollRef.current = setInterval(async () => {
+        try {
+          const status = await getRun(runId);
+          setRunStatus(status);
+          if (status.state === "done" || status.state === "failed") {
+            await onRunFinished(status);
+          }
+        } catch (err) {
+          stopRunPoll();
+          setBusy(false);
+          setRunError(err.message || "Lost contact while polling the run");
+        }
+      }, RUN_POLL_MS);
+    },
+    [onRunFinished, stopRunPoll]
+  );
+
+  const onStartWeeklyRun = async () => {
+    setRunError("");
+    setActionError("");
+    if (source !== "api") {
+      setRunError("Start the local API to run a week. Sample mode cannot start paid runs.");
+      return;
+    }
+    const unit = runUnit.trim();
+    const week = runWeekStart.trim();
+    if (!unit || !week) {
+      setRunError("Unit and week start (Monday) are required.");
+      return;
+    }
+    const remaining =
+      usage?.capped && usage.remaining != null ? ` ${usage.remaining} paid operation(s) left today.` : "";
+    const confirmed = window.confirm(
+      `Start a weekly run for unit ${unit}, week of ${week}? This calls live agents, costs about $0.50–$1.50, and can take a few minutes.${remaining}`
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setRunStatus(null);
+    try {
+      const status = await startWeeklyRun(unit, week);
+      setRunStatus(status);
+      showToast?.(`Weekly run started (${status.case_id}). This costs money and can take a few minutes.`);
+      await refreshUsage();
+      try {
+        await refreshCaseList(status.case_id);
+      } catch {
+        /* case may still be building; poll will open it when done */
+      }
+      if (status.state === "running") startRunPoll(status.run_id);
+      else await onRunFinished(status);
+    } catch (err) {
+      setBusy(false);
+      setRunError(err.message || "Could not start weekly run");
+      await refreshUsage();
+      if (err instanceof CaseApiError && err.status === 503) {
+        showToast?.("Live agents are off — restart API with NURSESYNC_LIVE=1 to start a weekly run");
+      } else if (err instanceof CaseApiError && err.status === 429) {
+        showToast?.("Daily paid-operation limit reached");
+      }
+    }
+  };
+
+  const runInProgress = runStatus?.state === "running";
+  const startRunDisabled =
+    busy || runInProgress || source !== "api" || !runUnit.trim() || !runWeekStart.trim();
 
   const openIssues = record ? hasOpenIssues(record) : false;
   const draft = record?.final_draft;
@@ -468,7 +598,11 @@ export default function ApprovalView({ showToast }) {
                 className="ghost-btn small"
                 disabled={busy}
                 onClick={async () => {
+                  stopRunPoll();
+                  setRunStatus(null);
+                  setBusy(false);
                   setSource("samples");
+                  setUsage(null);
                   setApiNote("Switched to bundled samples.");
                   await loadSample(sampleKey || "passed");
                 }}
@@ -485,6 +619,84 @@ export default function ApprovalView({ showToast }) {
           {apiNote}
         </div>
       )}
+
+      <section className="card approval-run" aria-labelledby="weekly-run-title">
+        <h3 className="section-label" id="weekly-run-title" style={{ marginTop: 0 }}>
+          Start weekly run
+        </h3>
+        <p className="muted small">
+          Posts to the local API, then polls until the draft is ready. Mock data only: unit {DEFAULT_RUN_UNIT},
+          week of {DEFAULT_RUN_WEEK}. Costs about $0.50–$1.50 and needs NURSESYNC_LIVE=1. One run at a time;
+          daily paid-ops cap applies. Not secure — this computer only.
+        </p>
+        <div className="approval-run-row">
+          <label className="approval-sample">
+            Unit
+            <input
+              type="text"
+              value={runUnit}
+              onChange={(e) => setRunUnit(e.target.value)}
+              disabled={runInProgress}
+              aria-label="Unit for weekly run"
+              autoComplete="off"
+            />
+          </label>
+          <label className="approval-sample">
+            Week start (Monday)
+            <input
+              type="date"
+              value={runWeekStart}
+              onChange={(e) => setRunWeekStart(e.target.value)}
+              disabled={runInProgress}
+              aria-label="Week start Monday for weekly run"
+            />
+          </label>
+          <button
+            type="button"
+            className="primary-btn"
+            disabled={startRunDisabled}
+            onClick={onStartWeeklyRun}
+            title={
+              source !== "api"
+                ? "Connect to the local API first"
+                : !liveAgents
+                  ? "Server needs NURSESYNC_LIVE=1"
+                  : runInProgress
+                    ? "A run is already in progress"
+                    : "Start weekly run"
+            }
+          >
+            {runInProgress ? "Running…" : "Start weekly run"}
+          </button>
+        </div>
+        {usage && (
+          <p className="muted small" role="status">
+            {usage.capped
+              ? `Paid operations today: ${usage.used_today} used, ${usage.remaining} left (cap ${usage.max_per_day}${
+                  usage.date ? ` · ${usage.date}` : ""
+                }).`
+              : "No daily paid-ops cap on this server."}
+          </p>
+        )}
+        {source === "api" && !liveAgents && (
+          <p className="approval-error" role="note">
+            Live agents are off. Starting a run will be refused (503) until the API is started with
+            NURSESYNC_LIVE=1 and an API key.
+          </p>
+        )}
+        {runStatus && (
+          <p className="muted small" role="status">
+            Run <code>{runStatus.run_id}</code>: {runStatus.state}
+            {runStatus.outcome ? ` · ${runStatus.outcome.replace(/_/g, " ")}` : ""}
+            {runStatus.message ? ` — ${runStatus.message}` : ""}
+          </p>
+        )}
+        {runError && (
+          <p className="approval-error" role="alert">
+            {runError}
+          </p>
+        )}
+      </section>
 
       {loading && <p className="loader">Loading…</p>}
       {loadError && (
