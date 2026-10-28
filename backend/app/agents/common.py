@@ -39,3 +39,23 @@ def send(client: Any, **kwargs: Any) -> Any:
         with messages.stream(**kwargs) as stream:
             return stream.get_final_message()
     return messages.create(**kwargs)
+
+
+def run_tool_loop(client: Any, model: str, system: str, user_message: str, tools: list,
+                  run_tool: Any, max_turns: int = 10) -> Any:
+    """Send one message, answer any tool calls, and return the final reply (the one with no tool call).
+
+    Raises RuntimeError when the loop runs out of turns or the reply was cut off (max_tokens), because a
+    cut-off JSON reply must never be read as an answer."""
+    messages: list = [{"role": "user", "content": user_message}]
+    for _ in range(max_turns):
+        reply = send(client, model=model, max_tokens=MAX_TOKENS, system=system, tools=tools, messages=messages)
+        calls = [b for b in reply.content if getattr(b, "type", "") == "tool_use"]
+        if not calls:
+            if getattr(reply, "stop_reason", None) == "max_tokens":
+                raise RuntimeError("the reply was cut off (max_tokens); the answer is incomplete")
+            return reply
+        messages.append({"role": "assistant", "content": reply.content})
+        messages.append({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": b.id, "content": run_tool(b.name, b.input)} for b in calls]})
+    raise RuntimeError(f"the agent did not finish within {max_turns} tool turns")
