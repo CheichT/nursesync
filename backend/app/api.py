@@ -172,6 +172,11 @@ def create_app(store: CaseStore, scheduler_factory: Optional[SchedulerFactory] =
     def health() -> Dict[str, Any]:
         return {"ok": True, "live_agents": live}
 
+    @app.get("/api/roster")
+    def get_roster() -> Dict[str, Any]:
+        """Names for the approval view. Only id and name: certifications and hours stay out of this answer."""
+        return {"nurses": [{"nurse_id": n.nurse_id, "name": n.name} for n in load_roster_and_rules().roster]}
+
     @app.get("/api/usage")
     def get_usage() -> Dict[str, Any]:
         if usage is None:

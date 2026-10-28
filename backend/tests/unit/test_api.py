@@ -174,6 +174,12 @@ def test_change_demand_refusals(live_client, store):
     assert store.load("demo-needs-review").status == "waiting_approval"
 
 
+def test_roster_gives_only_ids_and_names(client):
+    body = client.get("/api/roster").json()
+    assert len(body["nurses"]) > 0 and all(set(n) == {"nurse_id", "name"} for n in body["nurses"])
+    assert {"nurse_id": "N001", "name": "Avery Brooks"} in body["nurses"]
+
+
 # --- call-outs ------------------------------------------------------------------------------------------------
 
 CALL_OUT = {"call_outs": [{"nurse_id": "N008", "date": "2026-11-02", "shift": "day"}]}
