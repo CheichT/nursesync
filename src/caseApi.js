@@ -75,6 +75,26 @@ export async function changeDemand(caseId, changes, newCaseId = null) {
   });
 }
 
+/** Start a weekly run (background). Needs NURSESYNC_LIVE=1. Costs money (~$0.50–$1.50). */
+export async function startWeeklyRun(unit, weekStart, caseId = null) {
+  const body = { unit, week_start: weekStart };
+  if (caseId) body.case_id = caseId;
+  return request("/api/runs", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+export async function getRun(runId) {
+  return request(`/api/runs/${encodeURIComponent(runId)}`);
+}
+
+/** Daily paid-ops remaining. Returns null fields when the server has no cap. */
+export async function getUsage() {
+  return request("/api/usage");
+}
+
 export function formatCaseOption(summary) {
   const status = (summary.status || "").replace(/_/g, " ");
   const outcome = summary.outcome ? ` · ${summary.outcome.replace(/_/g, " ")}` : "";

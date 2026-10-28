@@ -1180,6 +1180,10 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .approval-error { color: var(--brick); font-size: 0.88rem; margin: 0; }
 .approval-modal { max-width: 440px; }
 .approval-block { margin-bottom: 10px; }
+.approval-run { margin-bottom: 14px; display:flex; flex-direction:column; gap: 8px; }
+.approval-run-row { display:flex; flex-wrap:wrap; align-items:flex-end; gap: 10px; }
+.approval-run-row .approval-sample { min-width: 140px; }
+.approval-run-row .approval-sample input { font-weight: 500; }
 
 .card { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
 .form-card { display:flex; flex-direction:column; gap: 12px; }

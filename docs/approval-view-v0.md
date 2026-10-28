@@ -11,7 +11,7 @@
 - **Stop vs build:** a missing required row stops the run (no draft, no Approve). `needs_review` alone still builds.
 - **Fix inputs:** missing availability has no “fix” action in product yet. Only a new run fixes it. UI can Reject or Change demand where allowed.
 - **Demand change:** old case → `out_of_date`; child case starts. After submit, go to `newer_case_id`.
-- **HTTP API:** shipped (`docs/api-v0.md`). UI uses list / get / approve / reject / change-demand via the Vite `/api` proxy. Sample JSON remains a fallback when the server is off.
+- **HTTP API:** shipped (`docs/api-v0.md`). UI uses list / get / approve / reject / change-demand / start-run / run status / usage via the Vite `/api` proxy. Sample JSON remains a fallback when the server is off.
 - **CaseRecord shape** unchanged. Change demand needs `NURSESYNC_LIVE=1` on the server (costs money).
 
 ## Purpose
@@ -104,18 +104,31 @@ If a late call-out or demand change created a newer case:
 - Refuse approve on the old case  
 - Point the manager to `newer_case_id`
 
+## Start weekly run
+
+Manager control on the Approve AI draft tab (API connected only).
+
+| Step | Behavior |
+| --- | --- |
+| **Start weekly run** | Confirm click, then `POST /api/runs` with `{ unit, week_start }` (JSON content type). Defaults for mock data: unit `7W`, week `2026-11-02` (Monday). |
+| **Poll** | Every 5 seconds, `GET /api/runs/{run_id}` until `state` is `done` or `failed`. Show the server `message` as-is. |
+| **Usage** | `GET /api/usage` — show remaining paid operations for the day (also mentioned in the confirm). |
+| **When done** | Refresh the case list and open the new `case_id`. |
+
+Needs `NURSESYNC_LIVE=1` (else 503). One run at a time (409 if busy). Daily paid-ops cap (429 when used up). Costs about $0.50–$1.50 and can take a few minutes. **Do not describe as secure.**
+
 ## Accessibility (must ship with the UI)
 
 - Every control keyboard-reachable; Esc closes dialogs  
 - Buttons have clear labels (`aria-label` if icon-only)  
 - Status not by color alone; muted labels use theme variables (readable in dark mode)  
-- Logical headings: Attention → Schedule → Notes → Actions  
+- Logical headings: Start weekly run → Attention → Schedule → Notes → Actions  
 
 ## Run (dev)
 
 ```bash
-# terminal 1 — local API (this computer only)
-cd backend && ../.venv/bin/python -m app.serve --seed-samples
+# terminal 1 — local API (this computer only); live agents for weekly runs
+cd backend && NURSESYNC_LIVE=1 ../.venv/bin/python -m app.serve --seed-samples
 
 # terminal 2 — app (open http://localhost:5173)
 npm run dev
@@ -126,4 +139,4 @@ npm run dev
 - Login / permissions  
 - Shift Board notification to nurses  
 - Fix-inputs flow for missing availability  
-- Starting weekly runs or call-outs through the API  
+- Call-outs through the API (Cheich)  
