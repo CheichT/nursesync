@@ -257,6 +257,7 @@ def test_the_server_wires_a_cap_and_runs_only_when_live_agents_are_on(tmp_path, 
     off = TestClient(serve.build_app(tmp_path / "a", live=False), base_url=LOCAL)
     assert off.post("/api/runs", json=BODY).status_code == 503 and off.get("/api/usage").json()["capped"] is False
     monkeypatch.setattr("app.config.load_api_key", lambda: "test-key-not-real")
+    monkeypatch.setattr("app.agents.common.load_api_key", lambda: "test-key-not-real")  # the clients read it here
     on = TestClient(serve.build_app(tmp_path / "b", live=True, usage_path=tmp_path / "usage.json"), base_url=LOCAL)
     usage = on.get("/api/usage").json()
     assert usage["capped"] is True and usage["used_today"] == 0 and usage["max_per_day"] == 10
