@@ -215,6 +215,18 @@ export default function ApprovalView({ showToast }) {
     }
   }, []);
 
+  /** Name with id, for sentences. Falls back to the id when the roster is not loaded. */
+  const who = (id) => (names[id] ? `${names[id]} (${id})` : id);
+
+  const loadNames = async () => {
+    try {
+      const data = await getRoster();
+      setNames(Object.fromEntries((data.nurses || []).map((n) => [n.nurse_id, n.name])));
+    } catch {
+      setNames({}); // the view still works with ids
+    }
+  };
+
   const stopRunPoll = useCallback(() => {
     if (runPollRef.current) {
       clearInterval(runPollRef.current);
@@ -268,18 +280,6 @@ export default function ApprovalView({ showToast }) {
       setRecord(null);
     } finally {
       setLoading(false);
-    }
-  };
-
-  /** Name with id, for sentences. Falls back to the id when the roster is not loaded. */
-  const who = (id) => (names[id] ? `${names[id]} (${id})` : id);
-
-  const loadNames = async () => {
-    try {
-      const data = await getRoster();
-      setNames(Object.fromEntries((data.nurses || []).map((n) => [n.nurse_id, n.name])));
-    } catch {
-      setNames({}); // the view still works with ids
     }
   };
 
