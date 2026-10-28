@@ -4,7 +4,7 @@ Only these state changes are allowed on a saved case, so a decided case can neve
   building -> waiting_approval
   waiting_approval -> approved | rejected | out_of_date
 A new case can be saved in any state. Saving the same state again (no change) is refused for decided cases.
-Not safe for two people writing at the same moment: there is no real login or locking yet.
+Not safe for two people writing at the same moment: the API puts a lock around every decision, and there is no real login yet.
 """
 
 import json
@@ -27,13 +27,21 @@ class CaseStoreError(Exception):
     """The case could not be saved or loaded. The message is plain language."""
 
 
+class InvalidCaseId(CaseStoreError):
+    """The case id is not made of letters, digits, - and _ only."""
+
+
+class CaseNotFound(CaseStoreError):
+    """No case is saved under that id."""
+
+
 class CaseStore:
     def __init__(self, folder: Path = DEFAULT_FOLDER):
         self.folder = Path(folder)
 
     def _path(self, case_id: str) -> Path:
         if not _SAFE_ID.fullmatch(case_id):
-            raise CaseStoreError(f"not a valid case id: {case_id!r} (letters, digits, - and _ only)")
+            raise InvalidCaseId(f"not a valid case id: {case_id!r} (letters, digits, - and _ only)")
         return self.folder / f"{case_id}.json"
 
     def exists(self, case_id: str) -> bool:
@@ -42,7 +50,7 @@ class CaseStore:
     def load(self, case_id: str) -> CaseRecord:
         path = self._path(case_id)
         if not path.exists():
-            raise CaseStoreError(f"no saved case {case_id}")
+            raise CaseNotFound(f"no saved case {case_id}")
         try:
             return CaseRecord.model_validate(json.loads(path.read_text()))
         except ValueError as err:

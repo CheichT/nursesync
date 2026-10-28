@@ -87,6 +87,7 @@ def build() -> Dict[str, CaseRecord]:
 
     # change demand: a demand row is missing, the manager fills it in, a child case starts
     only_demand_missing = _run("demo-demand-change", stuck_demand)  # availability complete, one demand row missing
+    cases["demand_change_before"] = only_demand_missing  # the same case before the manager acts (the API can change it)
     old, child = change_demand(
         only_demand_missing, [DemandChange(unit="7W", date="2026-11-03", shift="night", nurses_needed=4)],
         "demo-demand-change-2", lambda c, s: _scheduler([REFERENCE], c), HintingRulesChecker(), inputs.roster,

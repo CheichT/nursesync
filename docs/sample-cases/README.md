@@ -1,6 +1,6 @@
 # Sample case records (for the approval UI)
 
-Made-up data. Every `.json` file here is a real `CaseRecord` built by the real orchestrator code with scripted
+Made-up data. Several files are the SAME case in different states (`passed`/`approved`, `open_issues`/`approved_with_open_issues`, `stopped_missing_input`/`rejected`, `demand_change_before`/`demand_change_old`), so there are fewer case ids than files. Every `.json` file here is a real `CaseRecord` built by the real orchestrator code with scripted
 agents (no API calls), so you can build the UI against the true shape before there is an API.
 Shape: `backend/app/contract/case_record.py`. Rules: the PRD, "Case record".
 Regenerate: `cd backend && ../.venv/bin/python -m app.sample_cases` (a test fails if these files are out of date).
@@ -14,6 +14,7 @@ Regenerate: `cd backend && ../.venv/bin/python -m app.sample_cases` (a test fail
 | `approved.json` | `approved` | `passed` | After Approve: `manager_decision: "approved"`, `decision_time`, `decision_details`. |
 | `approved_with_open_issues.json` | `approved` | `stopped_after_3_rounds` | Approved with `decision_details.acknowledged_open_issues: true`. |
 | `rejected.json` | `rejected` | `rejected` | After Reject. |
+| `demand_change_before.json` | `waiting_approval` | `stopped_missing_input` | The same case as `demand_change_old`, before the manager acts: one demand row missing, availability complete. Change demand is the way forward. The API seeds this one. |
 | `demand_change_old.json` | `out_of_date` | `stopped_missing_input` | The case the manager changed demand on. `newer_case_id` and `decision_details` (`action: change_demand`, the changes) point to the new case. No Approve. |
 | `demand_change_child.json` | `waiting_approval` | `passed` | The new case: `parent_case_id` set, the edited row is `ok` with the note "set by manager (was missing)". Go here after the form is submitted. |
 | `call_out_old.json` | `out_of_date` | `passed` | The waiting case a late call-out replaced. `newer_case_id` is set. No Approve. |
