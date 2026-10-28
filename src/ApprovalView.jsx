@@ -227,6 +227,11 @@ export default function ApprovalView({ showToast }) {
     }
   };
 
+  useEffect(() => {
+    loadNames();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
+  }, []);
+
   const stopRunPoll = useCallback(() => {
     if (runPollRef.current) {
       clearInterval(runPollRef.current);
@@ -316,10 +321,6 @@ export default function ApprovalView({ showToast }) {
       await loadSample("passed");
     }
   };
-
-  useEffect(() => {
-    loadNames();
-  }, []);
 
   useEffect(() => {
     boot();
