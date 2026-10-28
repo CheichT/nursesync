@@ -10,6 +10,8 @@ Code-only paths (parts of 13–14) run once per sub-case unless a live agent is 
 | Case | File | Scenario data |
 | --- | --- | --- |
 | 1 — Golden (normal) | [case_01_golden.md](case_01_golden.md) | Current `backend/data/mock/` (base week) |
+| 2 — Edge week | [case_02_edge.md](case_02_edge.md) | `backend/data/scenarios/case_02/` (baseline vs team) |
+| 3 — Adversarial missing input | [case_03_adversarial.md](case_03_adversarial.md) | `backend/data/scenarios/case_03/` (honesty / invented data — not coverage) |
 | 4 — Overnight rest | [case_04_overnight_rest.md](case_04_overnight_rest.md) | `backend/data/scenarios/case_04/` (`load_scenario("case_04")`) |
 | 5 — Loop limit | [case_05_loop_limit.md](case_05_loop_limit.md) | `backend/data/scenarios/case_05/` (`load_scenario("case_05")`) |
 | 6 — Cert + overtime | [case_06_cert_and_overtime.md](case_06_cert_and_overtime.md) | `backend/data/scenarios/case_06/` (`load_scenario("case_06")`) |

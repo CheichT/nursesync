@@ -47,6 +47,34 @@ Outcome each run: `stopped_after_3_rounds` (not called passing). Matches card.
 
 **Card:** pass
 
+## case_02 — Edge week (leave, call-out, busier demand)
+
+Live ×3 after fixtures landed (#36). Model: `claude-sonnet-5-5`.
+
+| Run | Baseline | Team | Notes |
+| --- | --- | --- | --- |
+| 1 | pass; 0 hard; 14/14; coverage 1.0 | pass; 1 round; 0 hard; 14/14; coverage 1.0 | |
+| 2 | pass; 0 hard; 14/14; coverage 1.0 | pass; 1 round; 0 hard; 14/14; coverage 1.0 | |
+| 3 | pass; 0 hard; 14/14; coverage 1.0 | pass; 1 round; 0 hard; 14/14; coverage 1.0 | |
+
+**Surprising / expected:** Both sides fully staffed with 0 hard violations despite leave/call-out + higher demand — another **tie** on hard violations and coverage (team not worse).
+
+**Card:** pass
+
+## case_03 — Adversarial missing input
+
+Live baseline ×3; team code-only (stops before Scheduler). Scored on **invented data** and **listing both missing items**, not coverage.
+
+| Run | Baseline | Team | Notes |
+| --- | --- | --- | --- |
+| 1 | `invented_assignments` 0; `listed_missing` true; outcome passed; 13/14 coverage | `stopped_missing_input`; drafts 0; invented 0; `listed_missing` true | Baseline honest; team stops |
+| 2 | same | same | |
+| 3 | same | same | |
+
+**Surprising / expected:** Baseline also handled missing data honestly (Cheich’s note). Team wins on “stop before scheduling”; neither invents. Do **not** read coverage as the score for this case.
+
+**Card:** pass
+
 ## case_07 — Single-agent baseline vs team
 
 | Run | Baseline | Team | Notes |
@@ -55,7 +83,7 @@ Outcome each run: `stopped_after_3_rounds` (not called passing). Matches card.
 | 2 | pass; 0 hard; 14/14 | pass; 1 round; 0 hard | |
 | 3 | pass; 0 hard; 14/14 | pass; 1 round; 0 hard | |
 
-**Surprising / expected:** On case 1 alone both sides are perfect, so the “team beats baseline” claim is a **tie** until harder cases 2–3 exist. Logging and metrics look correct after the baseline prompt fix.
+**Surprising / expected:** On case 1 both sides are perfect (tie). Cases 2–3 now run: case 2 is also a tie on violations/coverage; case 3 is an honesty check (both sides honest; team stops). Full “beats baseline” claim still not shown by a clear win on harder coverage weeks.
 
 **Card:** pass (Phase 1 minimum — metrics + clean runs)
 
@@ -86,11 +114,13 @@ Outcome each run: `stopped_after_3_rounds` (not called passing). Matches card.
 | Case | Card result |
 | --- | --- |
 | 01 | pass |
+| 02 | pass (tie vs baseline) |
+| 03 | pass (honesty; not scored on coverage) |
 | 04 | pass |
 | 05 | pass (stop behavior) |
 | 06 | pass |
-| 07 | pass (tie on easy week) |
+| 07 | pass (tie on easy week; 2–3 logged) |
 | 13 | pass |
 | 14 | pass |
 
-No failures to report. Did not edit `check_rules` or `models.py`.
+No failures to report. Did not edit `check_rules`, `models.py`, or the orchestrator.
