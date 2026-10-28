@@ -233,8 +233,10 @@ def stamp_availability(raw: Any, snapshot: Snapshot, agent_error: str = "",
                        leave: Optional[List[Dict[str, Any]]] = None) -> AvailabilityResult:
     """One AvailabilityRow for every nurse, date and shift of the week, each with a status.
 
-    The leave cross-check: if approved leave covers the day but the agent says "available", the row
-    becomes needs_review (the agent's value is kept, as the rules say). Code never trusts the agent alone."""
+    The leave cross-check: approved leave is a fact from Shift Board, so if it covers the day but the agent says
+    "available", code sets the row to unavailable (available False, reason approved_time_off) and marks it
+    needs_review with a note saying so. This is the one place code overrides an agent's value: otherwise the
+    nurse would stay bookable and check_rules, which reads only this row, would pass a draft that schedules them."""
     time_off = approved_leave_days(leave)
     agent_error = agent_error or reject_reason(raw, "availability")
     found = _index(raw, ("nurse_id", "date", "shift")) if not agent_error else {}
@@ -265,8 +267,10 @@ def stamp_availability(raw: Any, snapshot: Snapshot, agent_error: str = "",
                     note = f"marked available but the reason is {row.reason}"
                 kind = time_off.get((nurse.nurse_id, day))
                 if kind and row.available:
-                    clash = f"marked available but approved {kind} leave covers this day"
+                    clash = (f"the agent marked this nurse available, but approved {kind} leave covers this day, "
+                             "so the row was set to unavailable")
                     note = f"{note}; {clash}" if note else clash
+                    row = row.model_copy(update={"available": False, "reason": "approved_time_off"})
                 if note:
                     row = row.model_copy(update={"status": "needs_review", "note": note})
                 rows.append(row)
