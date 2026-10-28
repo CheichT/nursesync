@@ -1,7 +1,9 @@
-"""DRAFT: both owners must review before use.
+"""Phase 2 case record and snapshot.
 
-The case record and the snapshot: the Phase 2 forms. Owner: Cheich. Kerrian's approval view reads
-the case record (see docs/approval-view-v0.md).
+Owner: Cheich. Kerrian's approval view reads this shape (see docs/approval-view-v0.md).
+**Kerrian Gordon signed off 2026-10-28** on the fields the approval UI and evals consume
+(`status`, `start_time`, `outcome`, `final_draft`, review lists, `unusual`, decision fields).
+No form fields were changed in that sign-off.
 
 Reuses the Phase 1 forms (rows, Draft, Violation) unchanged. If this file and the PRD disagree,
 the PRD wins.

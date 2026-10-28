@@ -73,8 +73,8 @@ are free.
 
 Phase 1 evals 1, 4, 5, 6, 7, 13, 14 pass (3 runs each). Cases 2 and 3 pass but are **ties** with the single-agent baseline
 (case 3: both handle missing data honestly; the team stops, the baseline builds a partial draft). Case 10 (late
-call-out) passed one live run: replaced the called-out nurse in 1 round, 0 violations, no locked changes. Kerrian is
-running case 10 three times.
+call-out) passed three live runs (Kerrian, 2026-10-28): replaced the called-out nurse in 1 round each, 0 violations, no
+locked changes. See `backend/evals/phase1/RESULTS.md`.
 
 ## What is left
 
@@ -84,7 +84,8 @@ running case 10 three times.
 - Real Shift Board data in place of mock files; Availability batching for units of about 50 nurses (output is cut off
   and rows become `missing`, never guessed); wire `get_callouts` into the Availability agent for weekly runs.
 - A call-out after a case is approved (the PRD only covers one still waiting); a login.
-- Kerrian: an "Agent notes" block for `unusual` (plain text), case 10 runs and card, a `models.py` sign-off note.
+- Kerrian leftovers from 2026-10-28: Agent notes for `unusual`, case 10 card + ×3 RESULTS, and contract sign-off notes
+  on `models.py` / `case_record.py` (shipped on her follow-up PR).
 - Housekeeping: accept the PRD suggestions, re-export the PRD PDF (the repo copy is stale), `cheich/agent-prompts-v0`
   is an old unmerged branch.
 

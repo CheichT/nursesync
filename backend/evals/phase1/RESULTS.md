@@ -87,6 +87,20 @@ Live baseline ×3; team code-only (stops before Scheduler). Scored on **invented
 
 **Card:** pass (Phase 1 minimum — metrics + clean runs)
 
+## case_10 — Late call-out
+
+Live ×3 (`python -m app.run_eval case_10 --runs 3`). Model: `claude-sonnet-5-5`. Parent is scripted; child Scheduler is live.
+
+| Run | Pass | Rounds | Replacement | Notes |
+| --- | --- | --- | --- | --- |
+| 1 | yes | 1 | N014 for N006 on 2026-11-04 day | Old `out_of_date`; child `passed`; 0 hard; 0 locked rejects |
+| 2 | yes | 1 | N002 for N006 | Same |
+| 3 | yes | 1 | N002 for N006 | Same |
+
+**Surprising / expected:** Stable one-round fixes; called-out nurse never left on the shift; suggestions named the replacement.
+
+**Card:** pass
+
 ## case_13 — Misreported verdict (code-only)
 
 | Check | Result |
@@ -120,6 +134,7 @@ Live baseline ×3; team code-only (stops before Scheduler). Scored on **invented
 | 05 | pass (stop behavior) |
 | 06 | pass |
 | 07 | pass (tie on easy week; 2–3 logged) |
+| 10 | pass |
 | 13 | pass |
 | 14 | pass |
 
