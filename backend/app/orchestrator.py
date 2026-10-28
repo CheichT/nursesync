@@ -115,8 +115,29 @@ def stamp_demand(raw: Any, snapshot: Snapshot, agent_error: str = "") -> DemandR
     return DemandResult(rows=rows, counts=_counts(rows))
 
 
-def stamp_availability(raw: Any, snapshot: Snapshot, agent_error: str = "") -> AvailabilityResult:
-    """One AvailabilityRow for every nurse, date and shift of the week, each with a status."""
+def approved_leave_days(leave: Optional[List[Dict[str, Any]]]) -> Dict[Tuple[str, str], str]:
+    """(nurse_id, date) -> leave type, for approved Shift Board leave requests only. Pending, denied
+    and unreadable requests are ignored: they are not time off."""
+    days: Dict[Tuple[str, str], str] = {}
+    for req in leave or []:
+        try:
+            if req.get("status") != "approved":
+                continue
+            first, last = date.fromisoformat(req["start"]), date.fromisoformat(req["end"])
+            for i in range((last - first).days + 1):
+                days[(req["employeeId"], (first + timedelta(days=i)).isoformat())] = str(req.get("type", "leave"))
+        except (AttributeError, KeyError, TypeError, ValueError):
+            continue
+    return days
+
+
+def stamp_availability(raw: Any, snapshot: Snapshot, agent_error: str = "",
+                       leave: Optional[List[Dict[str, Any]]] = None) -> AvailabilityResult:
+    """One AvailabilityRow for every nurse, date and shift of the week, each with a status.
+
+    The leave cross-check: if approved leave covers the day but the agent says "available", the row
+    becomes needs_review (the agent's value is kept, as the rules say). Code never trusts the agent alone."""
+    time_off = approved_leave_days(leave)
     found = _index(raw, ("nurse_id", "date", "shift")) if not agent_error else {}
     rows: List[AvailabilityRow] = []
     for nurse in snapshot.roster:
@@ -143,6 +164,10 @@ def stamp_availability(raw: Any, snapshot: Snapshot, agent_error: str = "") -> A
                 note = _flag(candidates[0])
                 if not note and row.available and row.reason != "none":
                     note = f"marked available but the reason is {row.reason}"
+                kind = time_off.get((nurse.nurse_id, day))
+                if kind and row.available:
+                    clash = f"marked available but approved {kind} leave covers this day"
+                    note = f"{note}; {clash}" if note else clash
                 if note:
                     row = row.model_copy(update={"status": "needs_review", "note": note})
                 rows.append(row)
@@ -167,9 +192,11 @@ def make_snapshot(roster: List[Nurse], rules: RulesConfig, unit: str, week_start
 def run_case(demand_agent: DemandAgent, availability_agent: AvailabilityAgent, scheduler: Scheduler,
              rules_checker: RulesChecker, roster: List[Nurse], rules: RulesConfig, unit: str,
              week_start: str, case_id: str, parent_case_id: Optional[str] = None,
-             now: Optional[Callable[[], datetime]] = None, snapshot_id: Optional[str] = None) -> CaseRecord:
+             now: Optional[Callable[[], datetime]] = None, snapshot_id: Optional[str] = None,
+             leave: Optional[List[Dict[str, Any]]] = None) -> CaseRecord:
     """`snapshot_id` defaults to snapshot_id_for(case_id). The Scheduler must be built with the same ID,
-    or its drafts are rejected as mislabeled."""
+    or its drafts are rejected as mislabeled. `leave` is the Shift Board leave list (leave.json); approved
+    requests are cross-checked against the Availability agent's rows."""
     snapshot = make_snapshot(roster, rules, unit, week_start, snapshot_id or snapshot_id_for(case_id), now)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -179,7 +206,7 @@ def run_case(demand_agent: DemandAgent, availability_agent: AvailabilityAgent, s
         availability_raw, availability_err = availability_job.result()
 
     demand = stamp_demand(demand_raw, snapshot, demand_err)
-    availability = stamp_availability(availability_raw, snapshot, availability_err)
+    availability = stamp_availability(availability_raw, snapshot, availability_err, leave)
 
     inputs = Phase1Inputs(demand=demand.rows, availability=availability.rows,
                           roster=snapshot.roster, rules=snapshot.rules)
