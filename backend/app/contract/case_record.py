@@ -76,6 +76,8 @@ class ManagerDecision(Form):
     action: DecisionAction
     decided_at: str  # ISO date and time
     demand_changes: List[DemandChange] = Field(default_factory=list)
+    acknowledged_open_issues: bool = False  # the manager approved a draft that still had open issues
+    new_case_id: Optional[str] = None  # change_demand: the new run this decision started
 
 
 class CaseRecord(Form):
@@ -97,4 +99,5 @@ class CaseRecord(Form):
     soft_tradeoffs: List[SoftTradeoff] = Field(default_factory=list)
     unfixable: List[Unfixable] = Field(default_factory=list)
     needs_manual_review: List[NeedsManualReview] = Field(default_factory=list)
+    newer_case_id: Optional[str] = None  # set when state is out_of_date: the run that replaced this one
     manager_decision: Optional[ManagerDecision] = None

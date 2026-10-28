@@ -56,7 +56,7 @@ def week_dates(week_start: str) -> List[str]:
     return [(start + timedelta(days=i)).isoformat() for i in range(7)]
 
 
-def _counts(rows: List[Any]) -> StatusCounts:
+def status_counts(rows: List[Any]) -> StatusCounts:
     c = StatusCounts()
     for r in rows:
         setattr(c, r.status, getattr(c, r.status) + 1)
@@ -112,7 +112,7 @@ def stamp_demand(raw: Any, snapshot: Snapshot, agent_error: str = "") -> DemandR
             if note:
                 row = row.model_copy(update={"status": "needs_review", "note": note})
             rows.append(row)
-    return DemandResult(rows=rows, counts=_counts(rows))
+    return DemandResult(rows=rows, counts=status_counts(rows))
 
 
 def approved_leave_days(leave: Optional[List[Dict[str, Any]]]) -> Dict[Tuple[str, str], str]:
@@ -171,7 +171,7 @@ def stamp_availability(raw: Any, snapshot: Snapshot, agent_error: str = "",
                 if note:
                     row = row.model_copy(update={"status": "needs_review", "note": note})
                 rows.append(row)
-    return AvailabilityResult(rows=rows, counts=_counts(rows))
+    return AvailabilityResult(rows=rows, counts=status_counts(rows))
 
 
 def _run_agent(agent: Any, snapshot: Snapshot) -> Tuple[Any, str]:
@@ -187,6 +187,26 @@ def make_snapshot(roster: List[Nurse], rules: RulesConfig, unit: str, week_start
     stamp = (now or datetime.now)().isoformat(timespec="seconds")
     return Snapshot(snapshot_id=snapshot_id, unit=unit, week_start=week_start, created_at=stamp,
                     roster=roster, rules=rules)
+
+
+def schedule_case(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: Snapshot, demand: DemandResult,
+                  availability: AvailabilityResult, case_id: str, parent_case_id: Optional[str] = None) -> CaseRecord:
+    """Run the Scheduler and Rules Checker loop on stamped rows and return the case record.
+    The Scheduler must be built with snapshot.snapshot_id. Used by run_case and by a manager's demand change."""
+    inputs = Phase1Inputs(demand=demand.rows, availability=availability.rows,
+                          roster=snapshot.roster, rules=snapshot.rules)
+    result = run_phase1(scheduler, rules_checker, inputs, case_id=case_id, snapshot_id=snapshot.snapshot_id)
+    return CaseRecord(
+        case_id=case_id, parent_case_id=parent_case_id, snapshot_id=snapshot.snapshot_id, unit=snapshot.unit,
+        week_start=snapshot.week_start, created_at=snapshot.created_at,
+        state="awaiting_approval" if result.final_draft is not None else "failed",
+        outcome=result.outcome if result.final_draft is not None else None,
+        demand_result=demand, availability_result=availability,
+        rounds=[RoundSummary(**r.model_dump()) for r in result.rounds],
+        final_draft=result.final_draft, open_violations=result.open_violations,
+        soft_tradeoffs=result.soft_tradeoffs, unfixable=result.unfixable,
+        needs_manual_review=result.needs_manual_review,
+    )
 
 
 def run_case(demand_agent: DemandAgent, availability_agent: AvailabilityAgent, scheduler: Scheduler,
@@ -208,18 +228,4 @@ def run_case(demand_agent: DemandAgent, availability_agent: AvailabilityAgent, s
     demand = stamp_demand(demand_raw, snapshot, demand_err)
     availability = stamp_availability(availability_raw, snapshot, availability_err, leave)
 
-    inputs = Phase1Inputs(demand=demand.rows, availability=availability.rows,
-                          roster=snapshot.roster, rules=snapshot.rules)
-    result = run_phase1(scheduler, rules_checker, inputs, case_id=case_id, snapshot_id=snapshot.snapshot_id)
-
-    return CaseRecord(
-        case_id=case_id, parent_case_id=parent_case_id, snapshot_id=snapshot.snapshot_id, unit=unit,
-        week_start=week_start, created_at=snapshot.created_at,
-        state="awaiting_approval" if result.final_draft is not None else "failed",
-        outcome=result.outcome if result.final_draft is not None else None,
-        demand_result=demand, availability_result=availability,
-        rounds=[RoundSummary(**r.model_dump()) for r in result.rounds],
-        final_draft=result.final_draft, open_violations=result.open_violations,
-        soft_tradeoffs=result.soft_tradeoffs, unfixable=result.unfixable,
-        needs_manual_review=result.needs_manual_review,
-    )
+    return schedule_case(scheduler, rules_checker, snapshot, demand, availability, case_id, parent_case_id)
