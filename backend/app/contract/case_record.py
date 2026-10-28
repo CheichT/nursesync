@@ -13,6 +13,7 @@ from pydantic import Field
 
 from app.contract.models import (
     AvailabilityRow,
+    Callout,
     DemandRow,
     Day,
     Draft,
@@ -113,6 +114,7 @@ class CaseRecord(Form):
     trigger: Trigger = "weekly"
     affected_shifts: List[ShiftRef]
     parent_case_id: Optional[str] = None
+    callouts: List[Callout] = Field(default_factory=list)  # call_out runs: who called out, and when
     unit: str
     week_start: Day
     status: CaseStatus

@@ -29,6 +29,11 @@ def build_message(case_id: str, snapshot_id: str, version: int, inputs: Phase1In
         "availability": [r.model_dump(mode="json") for r in inputs.availability],
         "roster": [n.model_dump(mode="json") for n in inputs.roster],
     }
+    if inputs.affected_shifts:  # a call-out run: the rest of the week is locked
+        payload["mode"] = "call_out"
+        payload["affected_shifts"] = [x.model_dump(mode="json") for x in inputs.affected_shifts]
+        payload["locked_assignments"] = [a.model_dump(mode="json") for a in inputs.locked_assignments]
+        payload["earlier_assignments"] = [a.model_dump(mode="json") for a in inputs.earlier_assignments]
     if version > 1:
         payload["violations"] = [v.model_dump(mode="json") for v in violations]
         payload["previous_draft"] = previous_draft.model_dump(mode="json") if previous_draft else None

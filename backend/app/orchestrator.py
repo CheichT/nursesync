@@ -40,7 +40,16 @@ from app.contract.case_record import (
     StatusCounts,
     VersionViolations,
 )
-from app.contract.models import AvailabilityRow, DemandRow, NeedsManualReview, Nurse, RulesConfig, _adjust_date
+from app.contract.models import (
+    Assignment,
+    AvailabilityRow,
+    Callout,
+    DemandRow,
+    NeedsManualReview,
+    Nurse,
+    RulesConfig,
+    _adjust_date,
+)
 from app.harness.phase1 import Phase1Inputs, RulesChecker, Scheduler, run_phase1
 
 SHIFTS = ("day", "night")
@@ -312,14 +321,17 @@ def schedule_case(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: S
                   availability: AvailabilityResult, case_id: str, parent_case_id: Optional[str] = None,
                   trigger: str = "weekly", affected_shifts: Optional[List[ShiftRef]] = None,
                   extra_review: Optional[List[NeedsManualReview]] = None,
-                  store: Optional[CaseStore] = None) -> CaseRecord:
+                  store: Optional[CaseStore] = None, locked_assignments: Optional[List[Assignment]] = None,
+                  earlier_assignments: Optional[List[Assignment]] = None,
+                  callouts: Optional[List[Callout]] = None) -> CaseRecord:
     """Build the case record for stamped rows. If any required row is missing, STOP before the Scheduler runs
     (outcome stopped_missing_input, no drafts) and tell the manager what is missing, as the PRD says. Otherwise
     run the Scheduler and Rules Checker loop. The Scheduler must be built with snapshot.snapshot_id.
     `extra_review` rows (such as a nurse not on the roster) are added to needs_manual_review. The finished
     record is saved to `store` when one is given. Used by run_case and by a manager's demand change."""
     record = _schedule(scheduler, rules_checker, snapshot, demand, availability, case_id, parent_case_id,
-                       trigger, affected_shifts, list(extra_review or []))
+                       trigger, affected_shifts, list(extra_review or []), locked_assignments or [],
+                       earlier_assignments or [], callouts or [])
     if store is not None:
         store.save(record)
     return record
@@ -327,20 +339,25 @@ def schedule_case(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: S
 
 def _schedule(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: Snapshot, demand: DemandResult,
               availability: AvailabilityResult, case_id: str, parent_case_id: Optional[str], trigger: str,
-              affected_shifts: Optional[List[ShiftRef]], extra: List[NeedsManualReview]) -> CaseRecord:
+              affected_shifts: Optional[List[ShiftRef]], extra: List[NeedsManualReview],
+              locked: List[Assignment], earlier: List[Assignment], callouts: List[Callout]) -> CaseRecord:
     common = dict(
         case_id=case_id, snapshot_id=snapshot.snapshot_id, start_time=snapshot.created_at, trigger=trigger,
         affected_shifts=affected_shifts if affected_shifts is not None else all_shifts(snapshot.week_start),
         parent_case_id=parent_case_id, unit=snapshot.unit, week_start=snapshot.week_start,
-        status="waiting_approval", demand_result=demand, availability_result=availability,
+        status="waiting_approval", demand_result=demand, availability_result=availability, callouts=callouts,
     )
     if demand.counts.missing or availability.counts.missing:
         reason, review = _missing_input(demand, availability)
         return CaseRecord(**common, outcome="stopped_missing_input", stop_reason=reason,
                           needs_manual_review=review + extra)
 
+    call_out = trigger == "call_out"
     inputs = Phase1Inputs(demand=demand.rows, availability=availability.rows,
-                          roster=snapshot.roster, rules=snapshot.rules)
+                          roster=snapshot.roster, rules=snapshot.rules,
+                          locked_assignments=locked if call_out else [],
+                          affected_shifts=common["affected_shifts"] if call_out else [],
+                          earlier_assignments=earlier if call_out else [])
     result = run_phase1(scheduler, rules_checker, inputs, case_id=case_id, snapshot_id=snapshot.snapshot_id)
     return CaseRecord(
         **common, outcome=result.outcome, rounds_used=min(len(result.rounds), 3),

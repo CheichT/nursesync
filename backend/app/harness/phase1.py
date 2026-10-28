@@ -35,7 +35,9 @@ from collections import Counter
 
 from pydantic import BaseModel, ValidationError, model_validator
 
+from app.contract.case_record import ShiftRef
 from app.contract.models import (
+    Assignment,
     AvailabilityRow,
     DemandRow,
     Draft,
@@ -61,6 +63,21 @@ class Phase1Inputs(BaseModel):
     availability: List[AvailabilityRow]
     roster: List[Nurse]
     rules: RulesConfig
+    # call-out runs only: the rest of the week from the earlier draft, and the shifts the Scheduler may change
+    locked_assignments: List[Assignment] = []
+    affected_shifts: List[ShiftRef] = []
+    earlier_assignments: List[Assignment] = []  # who the earlier draft had on the affected shifts, to limit churn
+
+    @model_validator(mode="after")
+    def _locked_stay_outside_affected_shifts(self):
+        affected = {(s.date, s.shift) for s in self.affected_shifts}
+        if self.locked_assignments and not affected:
+            raise ValueError("locked assignments need affected shifts")
+        clash = [a for a in self.locked_assignments if (a.date, a.shift) in affected]
+        if clash:
+            raise ValueError(f"locked assignment {clash[0].nurse_id} on {clash[0].date} {clash[0].shift} "
+                             "is inside an affected shift")
+        return self
 
     @model_validator(mode="after")
     def _no_duplicate_rows(self):
@@ -175,7 +192,39 @@ def _get_draft(scheduler: Scheduler, version: int, inputs: Phase1Inputs, previou
         log.error = (f"draft is labeled {draft.case_id}, {draft.snapshot_id}, version {draft.version}; "
                      f"expected {case_id}, {snapshot_id}, version {version}")
         return None
+    problem = _call_out_problem(draft, inputs)
+    if problem:
+        log.error = problem
+        return None
     return draft
+
+
+def _locked_key(a: Assignment) -> Tuple[str, str, str, str, str, str]:
+    return (a.unit, a.date, a.shift, a.nurse_id, a.shift_start, a.shift_end)
+
+
+def _call_out_problem(draft: Draft, inputs: Phase1Inputs) -> str:
+    """Call-out runs only. The Scheduler may change only the affected shifts: every other assignment must be
+    exactly the locked one. Suggestions must name a nurse on the roster and an affected shift. Anything else
+    fails the round, because code (not the Scheduler) decides what counts as locked."""
+    if not inputs.affected_shifts:
+        return ""
+    affected = {(s.date, s.shift) for s in inputs.affected_shifts}
+    want = {_locked_key(a) for a in inputs.locked_assignments}
+    got = {_locked_key(a) for a in draft.assignments if (a.date, a.shift) not in affected}
+    if got != want:
+        gone, new = sorted(want - got), sorted(got - want)
+        first = (f"removed {gone[0][3]} on {gone[0][1]} {gone[0][2]}" if gone
+                 else f"added {new[0][3]} on {new[0][1]} {new[0][2]}")
+        return (f"the Scheduler changed locked assignments ({len(gone)} removed, {len(new)} added; "
+                f"first: {first})")
+    roster = {n.nurse_id for n in inputs.roster}
+    for sug in draft.suggestions:
+        if sug.nurse_id not in roster:
+            return f"the Scheduler suggested {sug.nurse_id}, who is not on the roster"
+        if (sug.date, sug.shift) not in affected:
+            return f"the Scheduler suggested a replacement for {sug.date} {sug.shift}, which is not an affected shift"
+    return ""
 
 
 def _get_verdict(checker: Callable[..., Any], draft: Draft, inputs: Phase1Inputs,
