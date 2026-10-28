@@ -25,8 +25,11 @@ from app.contract.models import (
     Violation,
 )
 
-CaseState = Literal["running", "awaiting_approval", "approved", "rejected", "out_of_date", "failed"]
-Outcome = Literal["passed", "stopped_after_3_rounds"]
+# Names follow the PRD ("Case record"). If this file and the PRD disagree, the PRD wins.
+CaseStatus = Literal["building", "waiting_approval", "approved", "rejected", "out_of_date"]
+Outcome = Literal["passed", "stopped_after_3_rounds", "stopped_missing_input", "rejected"]
+Trigger = Literal["weekly", "call_out"]
+Decision = Literal["approved", "rejected"]
 DecisionAction = Literal["approve", "change_demand", "reject"]
 
 
@@ -57,6 +60,20 @@ class AvailabilityResult(Form):
     counts: StatusCounts
 
 
+class ShiftRef(Form):
+    """One date and shift. A weekly run lists every shift of the week; a call-out run lists only the affected ones."""
+
+    date: Day
+    shift: Literal["day", "night"]
+
+
+class VersionViolations(Form):
+    """The hard violations check_rules found on one draft version."""
+
+    version: int
+    violations: List[Violation]
+
+
 class RoundSummary(Form):
     version: int
     error: str = ""
@@ -72,32 +89,47 @@ class DemandChange(Form):
     nurses_needed: int = Field(ge=0)
 
 
-class ManagerDecision(Form):
+class DecisionDetails(Form):
+    """What the manager did, beyond the PRD's approved/rejected. A demand change is not approved or rejected:
+    it retires this case and starts a new one."""
+
     action: DecisionAction
-    decided_at: str  # ISO date and time
     demand_changes: List[DemandChange] = Field(default_factory=list)
     acknowledged_open_issues: bool = False  # the manager approved a draft that still had open issues
     new_case_id: Optional[str] = None  # change_demand: the new run this decision started
 
 
 class CaseRecord(Form):
-    """One run, start to finish. `final_draft` is empty when no round produced a valid draft."""
+    """One run, start to finish.
+
+    `drafts` and `violations` hold every checked version. `final_draft` is the best one (empty when no round
+    produced a valid draft) and `open_violations`, `unfixable` and `needs_manual_review` belong to it.
+    A run that stops for missing input has no drafts, outcome stopped_missing_input and a plain `stop_reason`.
+    """
 
     case_id: str
-    parent_case_id: Optional[str] = None
     snapshot_id: str
+    start_time: str  # ISO date and time
+    trigger: Trigger = "weekly"
+    affected_shifts: List[ShiftRef]
+    parent_case_id: Optional[str] = None
     unit: str
     week_start: Day
-    created_at: str
-    state: CaseState
+    status: CaseStatus
     outcome: Optional[Outcome] = None
+    stop_reason: str = ""
     demand_result: DemandResult
     availability_result: AvailabilityResult
+    drafts: List[Draft] = Field(default_factory=list)
+    violations: List[VersionViolations] = Field(default_factory=list)
+    rounds_used: int = Field(default=0, ge=0, le=3)
     rounds: List[RoundSummary] = Field(default_factory=list)
     final_draft: Optional[Draft] = None
     open_violations: List[Violation] = Field(default_factory=list)
     soft_tradeoffs: List[SoftTradeoff] = Field(default_factory=list)
     unfixable: List[Unfixable] = Field(default_factory=list)
     needs_manual_review: List[NeedsManualReview] = Field(default_factory=list)
-    newer_case_id: Optional[str] = None  # set when state is out_of_date: the run that replaced this one
-    manager_decision: Optional[ManagerDecision] = None
+    newer_case_id: Optional[str] = None  # set when status is out_of_date: the run that replaced this one
+    manager_decision: Optional[Decision] = None
+    decision_time: Optional[str] = None
+    decision_details: Optional[DecisionDetails] = None

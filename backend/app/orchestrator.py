@@ -27,10 +27,12 @@ from app.contract.case_record import (
     CaseRecord,
     DemandResult,
     RoundSummary,
+    ShiftRef,
     Snapshot,
     StatusCounts,
+    VersionViolations,
 )
-from app.contract.models import AvailabilityRow, DemandRow, Nurse, RulesConfig
+from app.contract.models import AvailabilityRow, DemandRow, NeedsManualReview, Nurse, RulesConfig
 from app.harness.phase1 import Phase1Inputs, RulesChecker, Scheduler, run_phase1
 
 SHIFTS = ("day", "night")
@@ -189,20 +191,55 @@ def make_snapshot(roster: List[Nurse], rules: RulesConfig, unit: str, week_start
                     roster=roster, rules=rules)
 
 
+def all_shifts(week_start: str) -> List[ShiftRef]:
+    return [ShiftRef(date=day, shift=shift) for day in week_dates(week_start) for shift in SHIFTS]
+
+
+def _missing_input(demand: DemandResult, availability: AvailabilityResult) -> Tuple[str, List[NeedsManualReview]]:
+    """What is missing, in plain language, and one needs-manual-review row for each missing demand shift and nurse."""
+    gone_d = [r for r in demand.rows if r.status == "missing"]
+    gone_a = [r for r in availability.rows if r.status == "missing"]
+    review = [NeedsManualReview(item_type="demand_day", id=f"{r.date} {r.shift}", note=r.note) for r in gone_d]
+    seen = set()
+    for r in gone_a:
+        if r.nurse_id not in seen:
+            seen.add(r.nurse_id)
+            review.append(NeedsManualReview(item_type="nurse", id=r.nurse_id, note=r.note))
+    parts = []
+    if gone_d:
+        parts.append(f"{len(gone_d)} demand row(s)")
+    if gone_a:
+        parts.append(f"{len(gone_a)} availability row(s)")
+    first = (gone_d or gone_a)[0].note
+    return (f"Stopped before scheduling because required input is missing: {' and '.join(parts)}. "
+            f"First problem: {first}."), review
+
+
 def schedule_case(scheduler: Scheduler, rules_checker: RulesChecker, snapshot: Snapshot, demand: DemandResult,
-                  availability: AvailabilityResult, case_id: str, parent_case_id: Optional[str] = None) -> CaseRecord:
-    """Run the Scheduler and Rules Checker loop on stamped rows and return the case record.
-    The Scheduler must be built with snapshot.snapshot_id. Used by run_case and by a manager's demand change."""
+                  availability: AvailabilityResult, case_id: str, parent_case_id: Optional[str] = None,
+                  trigger: str = "weekly", affected_shifts: Optional[List[ShiftRef]] = None) -> CaseRecord:
+    """Build the case record for stamped rows. If any required row is missing, STOP before the Scheduler runs
+    (outcome stopped_missing_input, no drafts) and tell the manager what is missing, as the PRD says. Otherwise
+    run the Scheduler and Rules Checker loop. The Scheduler must be built with snapshot.snapshot_id.
+    Used by run_case and by a manager's demand change."""
+    common = dict(
+        case_id=case_id, snapshot_id=snapshot.snapshot_id, start_time=snapshot.created_at, trigger=trigger,
+        affected_shifts=affected_shifts if affected_shifts is not None else all_shifts(snapshot.week_start),
+        parent_case_id=parent_case_id, unit=snapshot.unit, week_start=snapshot.week_start,
+        status="waiting_approval", demand_result=demand, availability_result=availability,
+    )
+    if demand.counts.missing or availability.counts.missing:
+        reason, review = _missing_input(demand, availability)
+        return CaseRecord(**common, outcome="stopped_missing_input", stop_reason=reason, needs_manual_review=review)
+
     inputs = Phase1Inputs(demand=demand.rows, availability=availability.rows,
                           roster=snapshot.roster, rules=snapshot.rules)
     result = run_phase1(scheduler, rules_checker, inputs, case_id=case_id, snapshot_id=snapshot.snapshot_id)
     return CaseRecord(
-        case_id=case_id, parent_case_id=parent_case_id, snapshot_id=snapshot.snapshot_id, unit=snapshot.unit,
-        week_start=snapshot.week_start, created_at=snapshot.created_at,
-        state="awaiting_approval" if result.final_draft is not None else "failed",
-        outcome=result.outcome if result.final_draft is not None else None,
-        demand_result=demand, availability_result=availability,
+        **common, outcome=result.outcome, rounds_used=min(len(result.rounds), 3),
         rounds=[RoundSummary(**r.model_dump()) for r in result.rounds],
+        drafts=result.drafts, violations=[VersionViolations(version=v, violations=vs)
+                                          for v, vs in result.round_violations],
         final_draft=result.final_draft, open_violations=result.open_violations,
         soft_tradeoffs=result.soft_tradeoffs, unfixable=result.unfixable,
         needs_manual_review=result.needs_manual_review,
