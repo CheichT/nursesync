@@ -10,8 +10,8 @@ nurse schedule. Four AI agents (Demand, Availability, Scheduler, Rules Checker) 
 **Code decides if a schedule is safe, not the AI**: `check_rules` is plain code. A human manager approves everything.
 
 Source of truth: the PRD (Google Doc "NurseSync PRD - Cheich Toure and Kerrian Gordon", id
-`1K_PYd9GuXEXMdO2GwT14reNq57oIvMj8hxmfbIy1_1Q`). If code and the PRD disagree, the PRD wins. **Six suggested edits are
-waiting in that doc (Tools, Review suggested edits). Someone must accept them.**
+`1K_PYd9GuXEXMdO2GwT14reNq57oIvMj8hxmfbIy1_1Q`). If code and the PRD disagree, the PRD wins. The six suggested edits
+were accepted on 2026-10-28.
 
 ## Who owns what
 
