@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Calendar, AlertTriangle, Bell, CheckCircle, XCircle, Repeat,
-  Clock, User, Shield, Plus, LogOut, Trash2, ChevronRight, Send, Pencil, ClipboardCheck, Home, Inbox
+  Clock, User, Shield, Plus, LogOut, Trash2, ChevronLeft, ChevronRight, Send, Pencil, ClipboardCheck, Home, Inbox
 } from "lucide-react";
 import ApprovalView from "./ApprovalView";
 import AppearanceMenu from "./AppearanceMenu";
@@ -28,6 +28,9 @@ const LEAVE_TYPES = [
   { key: "fmla", label: "FMLA" },
   { key: "overtime", label: "Overtime request" },
 ];
+
+// The label for a leave type. An unknown type (old or hand-edited data) reads "Other" instead of crashing.
+const leaveLabel = (key) => LEAVE_TYPES.find((t) => t.key === key)?.label || "Other";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -92,9 +95,9 @@ function MonthCalendar({ year, month, onPrev, onNext, selectedDate, onSelectDate
   return (
     <div className="cal">
       <div className="cal-head">
-        <button type="button" className="icon-btn" onClick={onPrev} aria-label="Previous month">‹</button>
+        <button type="button" className="cal-nav" onClick={onPrev} aria-label="Previous month"><ChevronLeft size={20} /></button>
         <strong>{monthLabel}</strong>
-        <button type="button" className="icon-btn" onClick={onNext} aria-label="Next month">›</button>
+        <button type="button" className="cal-nav" onClick={onNext} aria-label="Next month"><ChevronRight size={20} /></button>
       </div>
       <div className="cal-grid cal-dow">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i} className="cal-dow-cell">{d}</div>)}
@@ -840,7 +843,7 @@ function LeaveTab({ data, persist, notify, currentUser, showToast, prefill, onPr
   const submit = async () => {
     const req = { id: uid(), employeeId: currentUser.id, type, start, end, note, status: "pending", createdAt: Date.now() };
     const notifs = [...data.notifications];
-    notify(notifs, "admin", `${currentUser.name} submitted a ${LEAVE_TYPES.find(t => t.key === type).label} request (${fmtDate(start)} – ${fmtDate(end)}).`, req.id);
+    notify(notifs, "admin", `${currentUser.name} submitted a ${leaveLabel(type)} request (${fmtDate(start)} – ${fmtDate(end)}).`, req.id);
     await persist({ ...data, leave: [...data.leave, req], notifications: notifs });
     setNote(""); showToast("Request submitted.");
   };
@@ -871,7 +874,7 @@ function LeaveTab({ data, persist, notify, currentUser, showToast, prefill, onPr
         {mine.map((l) => (
           <div className="row-card" key={l.id}>
             <div>
-              <strong>{LEAVE_TYPES.find((t) => t.key === l.type).label}</strong>
+              <strong>{leaveLabel(l.type)}</strong>
               <div className="muted small">{fmtDate(l.start)} – {fmtDate(l.end)}{l.note ? " · " + l.note : ""}</div>
             </div>
             <RequestChip status={l.status} />
@@ -1016,7 +1019,7 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
     const notifs = [...data.notifications];
     if (conflict) {
       const why = leaveOn
-        ? `has an approved ${LEAVE_TYPES.find((t) => t.key === leaveOn.type)?.label.toLowerCase() || "leave"} request`
+        ? `has an approved ${leaveLabel(leaveOn.type).toLowerCase()} request`
         : `was marked not available (${avail.reason})`;
       notify(notifs, "admin", `Conflict: ${emp.name} ${why} on ${fmtDate(date)} but was scheduled anyway.`, shift.id);
       notify(notifs, employeeId, `You were scheduled ${fmtDate(date)}, ${start}-${end}, which conflicts with ${leaveOn ? "your approved time off" : "your marked unavailability"}. Please reschedule.`, shift.id);
@@ -1174,7 +1177,7 @@ function LeaveApprovals({ data, persist, notify, showToast }) {
   const decide = async (req, approve) => {
     const leave = data.leave.map((l) => l.id === req.id ? { ...l, status: approve ? "approved" : "denied" } : l);
     const notifs = [...data.notifications];
-    notify(notifs, req.employeeId, `Your ${LEAVE_TYPES.find(t => t.key === req.type).label} request was ${approve ? "approved" : "denied"}.`, req.id);
+    notify(notifs, req.employeeId, `Your ${leaveLabel(req.type)} request was ${approve ? "approved" : "denied"}.`, req.id);
     await persist({ ...data, leave, notifications: notifs });
     showToast(approve ? "Approved." : "Denied.");
   };
@@ -1189,7 +1192,7 @@ function LeaveApprovals({ data, persist, notify, showToast }) {
           return (
           <div className="row-card" key={l.id}>
             <div>
-              <strong>{nameOf(l.employeeId)} · {LEAVE_TYPES.find((t) => t.key === l.type).label}</strong>
+              <strong>{nameOf(l.employeeId)} · {leaveLabel(l.type)}</strong>
               <div className="muted small">{fmtDate(l.start)} – {fmtDate(l.end)}{l.note ? " · " + l.note : ""}</div>
               {booked.length > 0 && (
                 <div className="small sched-warn">✕ Already scheduled: {booked.map((sh) => `${fmtDate(sh.date)} ${sh.start}–${sh.end}`).join("; ")}</div>
@@ -1300,6 +1303,8 @@ ${paletteCss()}
 .cal { width: 100%; }
 .cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px; font-family:'Space Grotesk', sans-serif; }
 .cal-head strong { font-size: 0.95rem; }
+.cal-nav { display:inline-flex; align-items:center; justify-content:center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-raised); color: var(--ink); cursor: pointer; }
+.cal-nav:hover { border-color: var(--primary); background: var(--primary-bg); }
 .cal-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-dow { margin-bottom: 4px; }
 .cal-dow-cell { text-align:center; font-size: 0.68rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
