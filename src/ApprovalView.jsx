@@ -26,6 +26,7 @@ import {
   getUsage,
   formatCaseOption,
 } from "./caseApi";
+import DayDetail from "./DayDetail";
 
 const SHIFT_LABEL = { day: "Day 07:00–19:00", night: "Night 19:00–07:00" };
 /** Mock data only for now (Cheich #46). */
@@ -195,6 +196,7 @@ export default function ApprovalView({ showToast }) {
   const [runStatus, setRunStatus] = useState(null);
   const [runError, setRunError] = useState("");
   const [names, setNames] = useState({});
+  const [dayDetail, setDayDetail] = useState(null); // { date, shift } of the open popup
   const [callOutOpen, setCallOutOpen] = useState(false);
   const [callOutPick, setCallOutPick] = useState("");
   const runPollRef = useRef(null);
@@ -1011,20 +1013,24 @@ export default function ApprovalView({ showToast }) {
                       {weekDates.map((d) => {
                         const nurses = nursesByCell[`${d}|${shift}`] || [];
                         const gap = gaps.find((g) => g.date === d && g.shift === shift);
+                        const needed = (record?.demand_result?.rows || []).find((r) => r.date === d && r.shift === shift)?.nurses_needed ?? gap?.nurses_needed;
+                        const label = `${fmtDay(d)}, ${shift} shift: ${nurses.length} ${nurses.length === 1 ? "nurse" : "nurses"}${gap ? `, short by ${Math.max((gap.nurses_needed ?? 0) - (gap.nurses_assigned ?? 0), 0)}` : ""}. Open details`;
                         return (
                           <td key={`${d}|${shift}`}>
-                            {nurses.length ? (
-                              <span className="approval-nurses">
-                                {nurses.map((id) => names[id] || id).join(", ")}
-                              </span>
-                            ) : (
-                              <span className="muted">—</span>
-                            )}
-                            {gap ? (
-                              <div className="approval-gap-tag">
-                                Gap {gap.nurses_assigned}/{gap.nurses_needed}
-                              </div>
-                            ) : null}
+                            <button type="button" className="approval-cell-btn" aria-label={label} onClick={() => setDayDetail({ date: d, shift, needed })}>
+                              {nurses.length ? (
+                                <span className="approval-nurses">
+                                  {nurses.map((id) => names[id] || id).join(", ")}
+                                </span>
+                              ) : (
+                                <span className="muted">—</span>
+                              )}
+                              {gap ? (
+                                <div className="approval-gap-tag">
+                                  Gap {gap.nurses_assigned}/{gap.nurses_needed}
+                                </div>
+                              ) : null}
+                            </button>
                           </td>
                         );
                       })}
@@ -1147,6 +1153,17 @@ export default function ApprovalView({ showToast }) {
               scope for v1.
             </p>
           </div>
+
+          {dayDetail && (
+            <DayDetail
+              title={fmtDay(dayDetail.date)}
+              shiftLabel={SHIFT_LABEL[dayDetail.shift]}
+              nurses={(nursesByCell[`${dayDetail.date}|${dayDetail.shift}`] || []).map((id) => ({ id, name: names[id] }))}
+              needed={dayDetail.needed}
+              gap={gaps.find((g) => g.date === dayDetail.date && g.shift === dayDetail.shift)}
+              onClose={() => setDayDetail(null)}
+            />
+          )}
 
           {demandOpen && (
             <DemandChangeModal
