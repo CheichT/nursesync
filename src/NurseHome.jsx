@@ -35,7 +35,8 @@ export default function NurseHome({ data, currentUser, goTo, unreadAlerts }) {
   let dayOff = null;
   for (let i = 0; i < 14; i += 1) {
     const d = addDays(now, i);
-    if (!mine.some((s) => s.date === keyOf(d))) {
+    const marked = data.availability?.[currentUser.id]?.[keyOf(d)]?.status === "unavailable"; // a day you can't work is not a day off
+    if (!mine.some((s) => s.date === keyOf(d)) && !marked) {
       dayOff = whenLabel(d, now);
       break;
     }

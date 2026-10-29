@@ -16,8 +16,12 @@ const SHIFT_OPTIONS = [
   { key: "night", label: "Night", start: "19:00", end: "07:00" },
 ];
 const shiftKindOf = (s) => SHIFT_OPTIONS.find((o) => o.start === s.start && o.end === s.end);
+// An approved leave request (not overtime) that covers this date for this nurse, if any.
+const approvedLeaveOn = (data, employeeId, date) =>
+  data.leave.find((l) => l.employeeId === employeeId && l.status === "approved" && l.type !== "overtime" && l.start <= date && date <= l.end);
 const REASONS = ["Sick", "Appointment", "Family emergency", "Running late", "Other"];
 const LEAVE_TYPES = [
+  { key: "dayoff", label: "Day off" },
   { key: "vacation", label: "Vacation" },
   { key: "pto", label: "PTO" },
   { key: "fmla", label: "FMLA" },
@@ -40,6 +44,13 @@ const emptyData = () => ({
   leave: [],
   notifications: [],
 });
+
+// Request answer with text and a symbol, so it never relies on color alone.
+function RequestChip({ status }) {
+  const map = { pending: ["… Pending", "req-chip pending"], approved: ["✓ Approved", "req-chip approved"], denied: ["✕ Denied", "req-chip denied"] };
+  const [label, cls] = map[status] || [status, "req-chip pending"];
+  return <span className={cls}>{label}</span>;
+}
 
 function StatusPill({ status }) {
   const map = {
@@ -117,6 +128,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [newName, setNewName] = useState("");
   const [tab, setTab] = useState("");
+  const [leavePrefill, setLeavePrefill] = useState(""); // a date to prefill in the day-off request form
   const [toast, setToast] = useState("");
   const [mode, setMode] = useState("light"); // "light" | "dark" | "auto"
   const [systemDark, setSystemDark] = useState(false);
@@ -314,6 +326,9 @@ export default function App() {
             showToast={showToast}
             goTo={setTab}
             unreadAlerts={unread}
+            leavePrefill={leavePrefill}
+            clearLeavePrefill={() => setLeavePrefill("")}
+            askDayOff={(d) => { setLeavePrefill(d); setTab("leave"); }}
           />
         )}
       </main>
@@ -405,13 +420,13 @@ function LoginScreen({ data, persist, newName, setNewName, onSelect }) {
 }
 
 /* ---------- EMPLOYEE PANELS ---------- */
-function EmployeePanels({ tab, data, persist, notify, currentUser, showToast, goTo, unreadAlerts }) {
+function EmployeePanels({ tab, data, persist, notify, currentUser, showToast, goTo, unreadAlerts, leavePrefill, clearLeavePrefill, askDayOff }) {
   if (tab === "home") return <NurseHome data={data} currentUser={currentUser} goTo={goTo} unreadAlerts={unreadAlerts} />;
   if (tab === "week") return <MyWeekTab data={data} currentUser={currentUser} />;
-  if (tab === "availability") return <AvailabilityTab data={data} persist={persist} currentUser={currentUser} showToast={showToast} />;
+  if (tab === "availability") return <AvailabilityTab data={data} persist={persist} currentUser={currentUser} showToast={showToast} onAskDayOff={askDayOff} />;
   if (tab === "shifts") return <MyShiftsTab data={data} persist={persist} notify={notify} currentUser={currentUser} showToast={showToast} />;
   if (tab === "swaps") return <SwapsTab data={data} persist={persist} notify={notify} currentUser={currentUser} showToast={showToast} />;
-  if (tab === "leave") return <LeaveTab data={data} persist={persist} notify={notify} currentUser={currentUser} showToast={showToast} />;
+  if (tab === "leave") return <LeaveTab data={data} persist={persist} notify={notify} currentUser={currentUser} showToast={showToast} prefill={leavePrefill} onPrefillUsed={clearLeavePrefill} />;
   if (tab === "notifications") return <NotificationsTab data={data} persist={persist} audience={currentUser.id} />;
   return null;
 }
@@ -468,7 +483,7 @@ function MyWeekTab({ data, currentUser }) {
   );
 }
 
-function AvailabilityTab({ data, persist, currentUser, showToast }) {
+function AvailabilityTab({ data, persist, currentUser, showToast, onAskDayOff }) {
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
@@ -503,12 +518,12 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
   const dayLabel = (ds) => {
     const v = mine[ds];
     if (!v) return "";
-    return v.status === "unavailable" ? `unavailable${v.reason ? ` (${v.reason})` : ""}` : "available";
+    return v.status === "unavailable" ? `not available${v.reason ? ` (${v.reason})` : ""}` : "available";
   };
 
   const save = async () => {
     if (!status) {
-      setError("Choose Available or Unavailable.");
+      setError("Choose Available or Not available.");
       return;
     }
     if (status === "unavailable" && !reason) {
@@ -536,7 +551,7 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
   return (
     <div className="panel">
       <h2>Mark your availability</h2>
-      <p className="muted">Tap a day to mark it. ✓ means available, ✕ means unavailable.</p>
+      <p className="muted">Tap a day to mark it. ✓ available, ✕ not available. A day with no mark is open.</p>
       <div className="card">
         <MonthCalendar
           year={viewYear}
@@ -565,6 +580,12 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
               </label>
             </div>
           </fieldset>
+          <div className="avail-note" role="note">
+            <strong>Not available is not a day off.</strong> It tells your manager you can't be scheduled.{" "}
+            {onAskDayOff && (
+              <button type="button" className="link-btn" onClick={() => { setOpen(false); onAskDayOff(date); }}>Ask for a day off instead</button>
+            )}
+          </div>
           {status === "unavailable" && (
             <>
               <label>Reason
@@ -595,7 +616,7 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
             <div>
               <strong>{fmtDate(d)}</strong>
               <div className="muted small">
-                {v.status === "unavailable" ? `Unavailable · ${v.reason}${v.note ? " — " + v.note : ""}` : "Available"}
+                {v.status === "unavailable" ? `Not available · ${v.reason}${v.note ? " — " + v.note : ""}` : "Available"}
               </div>
             </div>
             <button className="icon-btn" onClick={() => remove(d)} aria-label={`Remove availability for ${fmtDate(d)}`}><Trash2 size={15} /></button>
@@ -797,11 +818,21 @@ function SwapsTab({ data, persist, notify, currentUser, showToast }) {
   );
 }
 
-function LeaveTab({ data, persist, notify, currentUser, showToast }) {
-  const [type, setType] = useState("vacation");
+function LeaveTab({ data, persist, notify, currentUser, showToast, prefill, onPrefillUsed }) {
+  const [type, setType] = useState("dayoff");
   const [start, setStart] = useState(today());
   const [end, setEnd] = useState(today());
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (prefill) {
+      setType("dayoff");
+      setStart(prefill);
+      setEnd(prefill);
+      onPrefillUsed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply a new prefill once
+  }, [prefill]);
 
   const mine = data.leave.filter((l) => l.employeeId === currentUser.id).sort((a, b) => b.createdAt - a.createdAt);
 
@@ -816,6 +847,7 @@ function LeaveTab({ data, persist, notify, currentUser, showToast }) {
   return (
     <div className="panel">
       <h2>Request time off</h2>
+      <p className="muted">Ask for a day off, vacation or other leave. Your manager approves or denies it, and you will see the answer in Your requests below.</p>
       <div className="card form-card">
         <div className="form-row">
           <label>Type
@@ -826,7 +858,7 @@ function LeaveTab({ data, persist, notify, currentUser, showToast }) {
           <label>Start<input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label>End<input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
         </div>
-        <label>Note<input value={note} onChange={(e) => setNote(e.target.value)} placeholder={type === "overtime" ? "How many extra hours, and why" : "Optional details"} /></label>
+        <label>Note<input value={note} onChange={(e) => setNote(e.target.value)} placeholder={type === "overtime" ? "How many extra hours, and why" : type === "dayoff" ? "Reason (optional)" : "Optional details"} /></label>
         <button className="primary-btn" onClick={submit}><Send size={14} /> Submit request</button>
       </div>
 
@@ -839,7 +871,7 @@ function LeaveTab({ data, persist, notify, currentUser, showToast }) {
               <strong>{LEAVE_TYPES.find((t) => t.key === l.type).label}</strong>
               <div className="muted small">{fmtDate(l.start)} – {fmtDate(l.end)}{l.note ? " · " + l.note : ""}</div>
             </div>
-            <StatusPill status={l.status} />
+            <RequestChip status={l.status} />
           </div>
         ))}
       </div>
@@ -969,12 +1001,16 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
     if (!employeeId) { showToast("Add an employee first."); return; }
     const emp = data.roster.find((u) => u.id === employeeId);
     const avail = data.availability[employeeId]?.[date];
-    const conflict = avail?.status === "unavailable";
+    const leaveOn = approvedLeaveOn(data, employeeId, date);
+    const conflict = avail?.status === "unavailable" || Boolean(leaveOn);
     const shift = { id: uid(), employeeId, date, start, end, status: conflict ? "conflict" : "scheduled" };
     const notifs = [...data.notifications];
     if (conflict) {
-      notify(notifs, "admin", `Conflict: ${emp.name} was marked unavailable (${avail.reason}) on ${fmtDate(date)} but was scheduled anyway.`, shift.id);
-      notify(notifs, employeeId, `You were scheduled ${fmtDate(date)}, ${start}-${end} — this conflicts with your marked unavailability. Please reschedule.`, shift.id);
+      const why = leaveOn
+        ? `has an approved ${LEAVE_TYPES.find((t) => t.key === leaveOn.type)?.label.toLowerCase() || "leave"} request`
+        : `was marked not available (${avail.reason})`;
+      notify(notifs, "admin", `Conflict: ${emp.name} ${why} on ${fmtDate(date)} but was scheduled anyway.`, shift.id);
+      notify(notifs, employeeId, `You were scheduled ${fmtDate(date)}, ${start}-${end}, which conflicts with ${leaveOn ? "your approved time off" : "your marked unavailability"}. Please reschedule.`, shift.id);
     }
     await persist({ ...data, shifts: [...data.shifts, shift], notifications: notifs });
     showToast(conflict ? "Shift added — conflict flagged." : "Shift added.");
@@ -1125,21 +1161,27 @@ function LeaveApprovals({ data, persist, notify, showToast }) {
 
   return (
     <div className="panel">
-      <h2>Leave requests</h2>
+      <h2>Leave and day-off requests</h2>
       {pending.length === 0 && <p className="muted">No pending requests.</p>}
       <div className="stack">
-        {pending.map((l) => (
+        {pending.map((l) => {
+          const booked = l.type === "overtime" ? [] : data.shifts.filter((sh) => sh.employeeId === l.employeeId && !sh.open && sh.date >= l.start && sh.date <= l.end);
+          return (
           <div className="row-card" key={l.id}>
             <div>
               <strong>{nameOf(l.employeeId)} · {LEAVE_TYPES.find((t) => t.key === l.type).label}</strong>
               <div className="muted small">{fmtDate(l.start)} – {fmtDate(l.end)}{l.note ? " · " + l.note : ""}</div>
+              {booked.length > 0 && (
+                <div className="small sched-warn">✕ Already scheduled: {booked.map((sh) => `${fmtDate(sh.date)} ${sh.start}–${sh.end}`).join("; ")}</div>
+              )}
             </div>
             <div className="ticket-actions">
               <button className="ghost-btn small" onClick={() => decide(l, true)}><CheckCircle size={13} /> Approve</button>
               <button className="ghost-btn small" onClick={() => decide(l, false)}><XCircle size={13} /> Deny</button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1247,6 +1289,12 @@ ${paletteCss()}
 .cal-cell.selected { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .cal-cell.is-today:not(.selected) { border-color: var(--indigo); border-width: 2px; }
 .cal-daynum { font-weight: 500; }
+.req-chip { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; border: 1px solid var(--line); color: var(--muted); }
+.req-chip.approved { background: var(--teal-bg); border-color: transparent; color: var(--teal); }
+.req-chip.denied { background: var(--brick-bg); border-color: transparent; color: var(--brick); }
+.avail-note { background: var(--warm-bg); color: var(--warm); border-radius: 8px; padding: 8px 10px; font-size: 0.85rem; margin-bottom: 12px; }
+.avail-note .link-btn { display: block; min-height: 44px; margin-top: 2px; text-align: left; }
+.sched-warn { color: var(--brick); font-weight: 600; }
 .choice-group { border: none; margin: 0 0 12px; padding: 0; min-width: 0; }
 .choice-group legend { padding: 0; margin-bottom: 8px; font-size: 0.85rem; font-weight: 600; }
 .choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
