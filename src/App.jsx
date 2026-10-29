@@ -72,9 +72,9 @@ function MonthCalendar({ year, month, onPrev, onNext, selectedDate, onSelectDate
   return (
     <div className="cal">
       <div className="cal-head">
-        <button type="button" className="icon-btn" onClick={onPrev}>‹</button>
+        <button type="button" className="icon-btn" onClick={onPrev} aria-label="Previous month">‹</button>
         <strong>{monthLabel}</strong>
-        <button type="button" className="icon-btn" onClick={onNext}>›</button>
+        <button type="button" className="icon-btn" onClick={onNext} aria-label="Next month">›</button>
       </div>
       <div className="cal-grid cal-dow">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i} className="cal-dow-cell">{d}</div>)}
@@ -242,7 +242,7 @@ export default function App() {
           <span className="who">
             {currentUser.isAdmin ? <Shield size={14} /> : <User size={14} />}
             {currentUser.name}
-            <button className="icon-btn" onClick={() => { setNameInput(currentUser.name); setEditingName(true); }} title="Edit name">
+            <button className="icon-btn" onClick={() => { setNameInput(currentUser.name); setEditingName(true); }} title="Edit name" aria-label="Edit name">
               <Pencil size={13} />
             </button>
           </span>
@@ -355,6 +355,7 @@ function LoginScreen({ data, persist, newName, setNewName, onSelect }) {
       </div>
       <div className="add-row">
         <input
+          aria-label="Your name, to join the team"
           placeholder="Add your name to join the team…"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -401,9 +402,9 @@ function MyWeekTab({ data, currentUser }) {
       <h2>My week</h2>
       <p className="muted">Your shifts for {isThisWeek ? "this week" : "the week of"} {rangeLabel}.</p>
       <div className="cal-head" style={{ marginBottom: 14 }}>
-        <button type="button" className="icon-btn" onClick={() => setWeekOffset((o) => o - 1)}>‹</button>
+        <button type="button" className="icon-btn" onClick={() => setWeekOffset((o) => o - 1)} aria-label="Previous week">‹</button>
         <strong>{rangeLabel}</strong>
-        <button type="button" className="icon-btn" onClick={() => setWeekOffset((o) => o + 1)}>›</button>
+        <button type="button" className="icon-btn" onClick={() => setWeekOffset((o) => o + 1)} aria-label="Next week">›</button>
       </div>
       <div className="stack">
         {days.map((d, i) => {
@@ -530,7 +531,7 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
                 {v.status === "unavailable" ? `Unavailable · ${v.reason}${v.note ? " — " + v.note : ""}` : "Available"}
               </div>
             </div>
-            <button className="icon-btn" onClick={() => remove(d)}><Trash2 size={15} /></button>
+            <button className="icon-btn" onClick={() => remove(d)} aria-label={`Remove availability for ${fmtDate(d)}`}><Trash2 size={15} /></button>
           </div>
         ))}
       </div>
@@ -949,7 +950,7 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
             </div>
             <div className="ticket-actions">
               <StatusPill status={s.status} />
-              <button className="icon-btn" onClick={() => removeShift(s.id)}><Trash2 size={15} /></button>
+              <button className="icon-btn" onClick={() => removeShift(s.id)} aria-label={`Remove shift for ${nameOf(s.employeeId)} on ${fmtDate(s.date)}`}><Trash2 size={15} /></button>
             </div>
           </div>
         ))}
@@ -1184,7 +1185,7 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .brand-name { font-family:'Space Grotesk', sans-serif; font-weight:700; font-size: 1.1rem; }
 
 .topbar { display:flex; justify-content:space-between; align-items:center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--paper-raised); flex-wrap: wrap; gap: 10px; }
-.topbar-right { display:flex; align-items:center; gap: 12px; }
+.topbar-right { display:flex; align-items:center; gap: 12px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
 .who { display:flex; align-items:center; gap:6px; font-weight:600; font-size:0.9rem; }
 
 .tabbar { display:flex; gap: 4px; padding: 10px 16px; overflow-x:auto; background: var(--paper-raised); border-bottom: 1px solid var(--line); }
@@ -1196,7 +1197,8 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .content { max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; }
 .content:has(.approval-panel) { max-width: 980px; }
 .panel-head { display:flex; justify-content:space-between; align-items:center; }
-.approval-sample { display:flex; flex-direction:column; gap:4px; font-size:0.8rem; font-weight:600; min-width: 220px; }
+.approval-sample { display:flex; flex-direction:column; gap:4px; font-size:0.8rem; font-weight:600; min-width: 220px; max-width: 100%; }
+.approval-sample select { max-width: 100%; text-overflow: ellipsis; }
 .approval-source-controls { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
 .approval-meta-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom: 10px; }
 .approval-dl { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; margin: 0; }
@@ -1245,6 +1247,14 @@ input:focus, select:focus { outline: 2px solid var(--indigo); outline-offset: 1p
 .row-card.unread { border-left: 3px solid var(--indigo); }
 .row-card.ticket { border-style: dashed; }
 .ticket-actions { display:flex; align-items:center; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .approval-source-controls { align-items: stretch; width: 100%; min-width: 0; }
+  .approval-sample { min-width: 0; width: 100%; }
+  .approval-run-row .approval-sample { min-width: 0; width: auto; flex: 1 1 140px; }
+  .icon-btn, .theme-toggle, .ghost-btn.small { min-width: 40px; min-height: 40px; }
+  .theme-toggle { width: 40px; height: 40px; }
+  .ghost-btn, .primary-btn, .tab { min-height: 40px; }
+}
 .mini-row { display:flex; justify-content:space-between; padding: 4px 0; border-bottom: 1px dotted var(--line); }
 
 .stamp { font-family:'IBM Plex Mono', monospace; font-size: 0.68rem; font-weight:600; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 9px; border-radius: 4px; display:inline-block; transform: rotate(-1.5deg); border: 1px solid currentColor; }
