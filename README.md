@@ -35,6 +35,11 @@ Nurse managers spend hours every week building schedules by hand. Staffing needs
     <td valign="top"><img src="docs/screenshots/08-leave-requests.jpg" width="190" alt="Request time off: a form, then three requests marked Pending, Approved and Denied"><br><sub><b>Ask for time off.</b> Each request shows Pending, Approved or Denied until the manager decides.</sub></td>
     <td valign="top"><img src="docs/screenshots/01-login.jpg" width="190" alt="Login screen: pick a name"><br><sub><b>Pick-a-name login.</b> There is no real sign-in yet, and the app says so.</sub></td>
   </tr>
+  <tr>
+    <td valign="top"><img src="docs/screenshots/11-how-agents-decided.jpg" width="380" alt="How the agents decided: a recommendation, then one step each for Demand, Availability, the Scheduler's own reasoning, and the plain-code rules check"><br><sub><b>How the agents decided.</b> A recommendation first, then what each agent did and why. The pass or fail comes from code, and the screen says so.</sub></td>
+    <td valign="top"><img src="docs/screenshots/10-nurse-month.jpg" width="190" alt="One nurse's month: Day and Night shifts, unavailable days and approved time off, each labeled in words"><br><sub><b>A nurse's month.</b> Tap a nurse while building to see shifts, time off and conflicts.</sub></td>
+    <td valign="top"><img src="docs/screenshots/09-build-schedule.jpg" width="190" alt="Build Schedule: pick an employee, a date and a Day or Night shift, then the list of nurses"><br><sub><b>Build Schedule.</b> Day or Night only, and one shift per nurse per day.</sub></td>
+  </tr>
 </table>
 
 ## How it works
