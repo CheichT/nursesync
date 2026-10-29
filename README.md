@@ -59,7 +59,7 @@ Nurse managers spend hours every week building schedules by hand. Staffing needs
 
 ## Evidence
 
-- **400 backend tests**, none of which call the API or cost anything.
+- **403 backend tests**, none of which call the API or cost anything.
 - **Evals against a single-agent baseline.** The cards cover a normal week, overnight rest, the 3-round limit, certifications and overtime, missing data, and a late call-out. Each live card was run three times and passed. On three of them the baseline did just as well, and the results file says so. See [the results](backend/evals/phase1/RESULTS.md).
 - **A real end-to-end run from the UI:** about two minutes, one round, zero hard violations, 62 assignments, at an estimated $0.50 to $1.50.
 

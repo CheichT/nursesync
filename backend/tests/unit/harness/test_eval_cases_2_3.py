@@ -71,7 +71,10 @@ def test_case_3_has_one_nurse_without_data_and_one_demand_day_without_data():
 def test_case_3_a_draft_that_uses_the_missing_nurse_gets_availability_violations():
     inputs, _ = load_scenario("case_03")
     found = hard(inputs, Draft(**REFERENCE))
-    assert found and {r for r, *_ in found} == {"availability"} and {n for _, n, _, _ in found} == {"N012"}
+    # N012 is unavailable, and the reference draft also staffs the 2026-11-03 night shift whose demand number is missing
+    assert {r for r, *_ in found} == {"availability", "coverage"}
+    assert {n for r, n, _, _ in found if r == "availability"} == {"N012"}
+    assert [(d, s) for r, _, d, s in found if r == "coverage"] == [("2026-11-03", "night")]
 
 
 # --- scoring --------------------------------------------------------------------------------------

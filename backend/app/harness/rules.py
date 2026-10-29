@@ -179,6 +179,16 @@ def check_rules(
                 found=_nurses(len(crew)), limit=_nurses(row.nurses_needed),
             ))
 
+    # --- shifts nobody asked for ---------------------------------------------------
+    # A nurse may not be put on a shift that has no demand number. A missing or absent number is an open gap, never a guess.
+    sized = {(row.unit, row.date, row.shift) for row in demand if row.nurses_needed is not None}
+    for (unit, day, shift), crew in sorted(on_shift.items()):
+        if (unit, day, shift) not in sized:
+            violations.append(Violation(
+                rule="coverage", severity="hard", date=day, shift=shift,
+                found=_nurses(len(crew)), limit="0 nurses (no demand number for this shift)",
+            ))
+
     # --- availability ------------------------------------------------------------
     avail = _most_cautious_rows(availability)
     for a in assignments:
