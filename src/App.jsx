@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Calendar, AlertTriangle, Bell, CheckCircle, XCircle, Repeat,
-  Clock, User, Shield, Plus, LogOut, Trash2, ChevronRight, Send, Sun, Moon, Pencil, ClipboardCheck
+  Clock, User, Shield, Plus, LogOut, Trash2, ChevronRight, Send, Pencil, ClipboardCheck
 } from "lucide-react";
 import ApprovalView from "./ApprovalView";
+import AppearanceMenu from "./AppearanceMenu";
 import { DEFAULT_PALETTE, isPalette, paletteCss } from "./themes";
 
 const STORAGE_KEY = "scheduler-data";
@@ -107,7 +108,9 @@ export default function App() {
   const [newName, setNewName] = useState("");
   const [tab, setTab] = useState("");
   const [toast, setToast] = useState("");
-  const [theme, setTheme] = useState("light");
+  const [mode, setMode] = useState("light"); // "light" | "dark" | "auto"
+  const [systemDark, setSystemDark] = useState(false);
+  const isDark = mode === "dark" || (mode === "auto" && systemDark);
   const [palette, setPalette] = useState(DEFAULT_PALETTE);
   const [confirmReset, setConfirmReset] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -117,18 +120,34 @@ export default function App() {
     (async () => {
       try {
         const res = await window.storage.get("theme-pref", false);
-        if (res?.value) setTheme(res.value);
+        if (res?.value && ["light", "dark", "auto"].includes(res.value)) setMode(res.value);
         const pal = await window.storage.get("palette-pref", false);
         if (pal?.value && isPalette(pal.value)) setPalette(pal.value);
       } catch {}
     })();
   }, []);
 
-  const toggleTheme = async () => {
-    const next = theme === "light" ? "dark" : "light";
-    setTheme(next);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return undefined;
+    setSystemDark(mq.matches);
+    const onChange = (e) => setSystemDark(e.matches);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+
+  const chooseMode = async (next) => {
+    setMode(next);
     try {
       await window.storage.set("theme-pref", next, false);
+    } catch {}
+  };
+
+  const choosePalette = async (next) => {
+    if (!isPalette(next)) return;
+    setPalette(next);
+    try {
+      await window.storage.set("palette-pref", next, false);
     } catch {}
   };
 
@@ -182,7 +201,7 @@ export default function App() {
 
   if (loading || !data) {
     return (
-      <div className={`scheduler-root pal-${palette} center-screen ${theme === "dark" ? "dark" : ""}`}>
+      <div className={`scheduler-root pal-${palette} center-screen ${isDark ? "dark" : ""}`}>
         <style>{GLOBAL_CSS}</style>
         <div className="loader">Loading schedule board…</div>
       </div>
@@ -191,11 +210,9 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <div className={`scheduler-root pal-${palette} center-screen ${theme === "dark" ? "dark" : ""}`}>
+      <div className={`scheduler-root pal-${palette} center-screen ${isDark ? "dark" : ""}`}>
         <style>{GLOBAL_CSS}</style>
-        <button className="theme-toggle corner" onClick={toggleTheme} title="Toggle theme">
-          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        <AppearanceMenu corner palette={palette} mode={mode} onPalette={choosePalette} onMode={chooseMode} />
         <LoginScreen
           data={data}
           persist={persist}
@@ -213,7 +230,7 @@ export default function App() {
   const unread = myNotifs.filter((n) => !n.read).length;
 
   return (
-    <div className={`scheduler-root pal-${palette} ${theme === "dark" ? "dark" : ""}`}>
+    <div className={`scheduler-root pal-${palette} ${isDark ? "dark" : ""}`}>
       <style>{GLOBAL_CSS}</style>
       <header className="topbar">
         <div className="brand">
@@ -221,9 +238,7 @@ export default function App() {
           <span className="brand-name">NurseSync</span>
         </div>
         <div className="topbar-right">
-          <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
+          <AppearanceMenu palette={palette} mode={mode} onPalette={choosePalette} onMode={chooseMode} />
           <span className="who">
             {currentUser.isAdmin ? <Shield size={14} /> : <User size={14} />}
             {currentUser.name}
@@ -1119,7 +1134,23 @@ ${paletteCss()}
 }
 .theme-toggle { display:flex; align-items:center; justify-content:center; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink); cursor: pointer; }
 .theme-toggle:hover { background: var(--paper); }
-.theme-toggle.corner { position: absolute; top: 16px; right: 16px; }
+.appearance { position: relative; }
+.appearance.corner { position: absolute; top: 16px; right: 16px; z-index: 20; }
+.appearance-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 320px; max-width: calc(100vw - 32px); max-height: 80vh; overflow: auto; background: var(--paper-raised); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+.appearance-title { margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1rem; }
+.appearance-group { border: none; margin: 12px 0 0; padding: 0; min-width: 0; }
+.appearance-group legend { padding: 0; margin-bottom: 6px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.appearance-option { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; cursor: pointer; font-size: 0.88rem; }
+.appearance-option.on, .appearance-mode.on { border-color: var(--primary); background: var(--primary-bg); }
+.appearance-option input, .appearance-mode input { accent-color: var(--primary); margin: 0; }
+.appearance-option:focus-within, .appearance-mode:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.appearance-dots { display: flex; gap: 2px; }
+.appearance-dots i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); display: block; }
+.appearance-modes { display: flex; gap: 6px; flex-wrap: wrap; }
+.appearance-mode { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; font-size: 0.85rem; flex: 1 1 auto; }
+@media (max-width: 640px) {
+  .appearance-panel { position: fixed; left: 16px; right: 16px; top: 64px; width: auto; max-width: none; }
+}
 .center-screen { position: relative; }
 .center-screen { display:flex; align-items:center; justify-content:center; min-height: 400px; }
 
