@@ -4,6 +4,7 @@ import {
   Clock, User, Shield, Plus, LogOut, Trash2, ChevronRight, Send, Sun, Moon, Pencil, ClipboardCheck
 } from "lucide-react";
 import ApprovalView from "./ApprovalView";
+import { DEFAULT_PALETTE, isPalette, paletteCss } from "./themes";
 
 const STORAGE_KEY = "scheduler-data";
 const REASONS = ["Sick", "Appointment", "Family emergency", "Running late", "Other"];
@@ -107,6 +108,7 @@ export default function App() {
   const [tab, setTab] = useState("");
   const [toast, setToast] = useState("");
   const [theme, setTheme] = useState("light");
+  const [palette, setPalette] = useState(DEFAULT_PALETTE);
   const [confirmReset, setConfirmReset] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -116,6 +118,8 @@ export default function App() {
       try {
         const res = await window.storage.get("theme-pref", false);
         if (res?.value) setTheme(res.value);
+        const pal = await window.storage.get("palette-pref", false);
+        if (pal?.value && isPalette(pal.value)) setPalette(pal.value);
       } catch {}
     })();
   }, []);
@@ -178,7 +182,7 @@ export default function App() {
 
   if (loading || !data) {
     return (
-      <div className={`scheduler-root center-screen ${theme === "dark" ? "dark" : ""}`}>
+      <div className={`scheduler-root pal-${palette} center-screen ${theme === "dark" ? "dark" : ""}`}>
         <style>{GLOBAL_CSS}</style>
         <div className="loader">Loading schedule board…</div>
       </div>
@@ -187,7 +191,7 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <div className={`scheduler-root center-screen ${theme === "dark" ? "dark" : ""}`}>
+      <div className={`scheduler-root pal-${palette} center-screen ${theme === "dark" ? "dark" : ""}`}>
         <style>{GLOBAL_CSS}</style>
         <button className="theme-toggle corner" onClick={toggleTheme} title="Toggle theme" aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
           {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
@@ -209,7 +213,7 @@ export default function App() {
   const unread = myNotifs.filter((n) => !n.read).length;
 
   return (
-    <div className={`scheduler-root ${theme === "dark" ? "dark" : ""}`}>
+    <div className={`scheduler-root pal-${palette} ${theme === "dark" ? "dark" : ""}`}>
       <style>{GLOBAL_CSS}</style>
       <header className="topbar">
         <div className="brand">
@@ -1078,6 +1082,8 @@ function Modal({ title, onClose, children }) {
 }
 
 const GLOBAL_CSS = `
+${paletteCss()}
+
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
 
 .scheduler-root {
@@ -1127,7 +1133,7 @@ const GLOBAL_CSS = `
 .cal-cell { position:relative; aspect-ratio: 1; border: 1px solid var(--line); background: var(--paper); border-radius: 8px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 3px; cursor:pointer; font-family:'IBM Plex Sans'; font-size: 0.8rem; color: var(--ink); }
 .cal-cell:hover { border-color: var(--indigo); }
 .cal-cell.empty { border: none; background: transparent; cursor: default; }
-.cal-cell.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.cal-cell.selected { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .cal-cell.is-today:not(.selected) { border-color: var(--indigo); border-width: 2px; }
 .cal-daynum { font-weight: 500; }
 .cal-dot { width: 5px; height: 5px; border-radius: 50%; display:block; }
@@ -1143,7 +1149,7 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .tight { gap: 4px !important; }
 
 .brand { display:flex; align-items:center; gap:10px; }
-.brand-mark { font-family:'Space Grotesk', sans-serif; font-weight:700; background: var(--ink); color: var(--paper); border-radius: 6px; padding: 4px 9px; font-size: 0.85rem; letter-spacing: 0.03em; }
+.brand-mark { font-family:'Space Grotesk', sans-serif; font-weight:700; background: var(--primary); color: var(--on-primary); border-radius: 6px; padding: 4px 9px; font-size: 0.85rem; letter-spacing: 0.03em; }
 .brand-mark.big { font-size: 1.4rem; padding: 10px 16px; border-radius: 10px; }
 .brand-name { font-family:'Space Grotesk', sans-serif; font-weight:700; font-size: 1.1rem; }
 
@@ -1154,7 +1160,7 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .tabbar { display:flex; gap: 4px; padding: 10px 16px; overflow-x:auto; background: var(--paper-raised); border-bottom: 1px solid var(--line); }
 .tab { display:flex; align-items:center; gap:6px; padding: 8px 14px; border-radius: 8px; border:none; background:transparent; color: var(--muted); font-family:'IBM Plex Sans'; font-weight:500; font-size:0.85rem; cursor:pointer; white-space:nowrap; position:relative; }
 .tab:hover { background: var(--paper); }
-.tab-active { background: var(--ink); color: var(--paper); }
+.tab-active { background: var(--primary); color: var(--on-primary); }
 .badge { background: var(--brick); color:white; font-size:0.65rem; padding: 1px 6px; border-radius: 10px; margin-left: 2px; }
 
 .content { max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; }
@@ -1196,9 +1202,9 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 input, select { font-family:'IBM Plex Sans'; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); font-size: 0.9rem; color: var(--ink); }
 input:focus, select:focus { outline: 2px solid var(--indigo); outline-offset: 1px; }
 
-.primary-btn { display:flex; align-items:center; gap:6px; justify-content:center; background: var(--ink); color: var(--paper); border:none; padding: 10px 16px; border-radius: 8px; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
+.primary-btn { display:flex; align-items:center; gap:6px; justify-content:center; background: var(--primary); color: var(--on-primary); border:none; padding: 10px 16px; border-radius: 8px; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
 .primary-btn:disabled { opacity: 0.4; cursor:not-allowed; }
-.primary-btn:hover:not(:disabled) { background: #2C3550; }
+.primary-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--primary), var(--ink) 18%); }
 .ghost-btn { display:flex; align-items:center; gap:6px; background:transparent; border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; font-size:0.82rem; font-weight:500; cursor:pointer; color: var(--ink); }
 .ghost-btn:hover { background: var(--paper); }
 .ghost-btn.small { padding: 5px 9px; font-size: 0.75rem; }
@@ -1224,7 +1230,7 @@ input:focus, select:focus { outline: 2px solid var(--indigo); outline-offset: 1p
 
 .login-card { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 16px; padding: 32px; width: 100%; max-width: 380px; text-align:center; }
 .roster-list { display:flex; flex-direction:column; gap:8px; margin: 20px 0; text-align:left; }
-.roster-item { display:flex; justify-content:space-between; align-items:center; padding: 10px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--paper); cursor:pointer; font-weight:500; }
+.roster-item { display:flex; justify-content:space-between; align-items:center; padding: 10px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor:pointer; font-weight:500; }
 .roster-item:hover { border-color: var(--indigo); }
 .add-row { display:flex; gap:8px; }
 .add-row input { flex:1; }
