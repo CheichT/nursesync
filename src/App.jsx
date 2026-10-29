@@ -6,6 +6,7 @@ import {
 import ApprovalView from "./ApprovalView";
 import AppearanceMenu from "./AppearanceMenu";
 import NurseHome from "./NurseHome";
+import ManagerHome from "./ManagerHome";
 import { DEFAULT_PALETTE, isPalette, paletteCss } from "./themes";
 
 const STORAGE_KEY = "scheduler-data";
@@ -219,7 +220,7 @@ export default function App() {
           persist={persist}
           newName={newName}
           setNewName={setNewName}
-          onSelect={(u) => { setCurrentUser(u); setTab(u.isAdmin ? "builder" : "home"); }}
+          onSelect={(u) => { setCurrentUser(u); setTab("home"); }}
         />
       </div>
     );
@@ -229,7 +230,8 @@ export default function App() {
     .filter((n) => n.audience === (currentUser.isAdmin ? "admin" : currentUser.id))
     .sort((a, b) => b.ts - a.ts);
   const unread = myNotifs.filter((n) => !n.read).length;
-  const group = EMP_GROUPS.find((g) => g.leaves.some((l) => l.key === tab)) || EMP_GROUPS[0];
+  const groups = currentUser.isAdmin ? ADMIN_GROUPS : EMP_GROUPS;
+  const group = groups.find((g) => g.leaves.some((l) => l.key === tab)) || groups[0];
 
   return (
     <div className={`scheduler-root pal-${palette} ${isDark ? "dark" : ""}`}>
@@ -259,60 +261,41 @@ export default function App() {
         </div>
       </header>
 
-      {currentUser.isAdmin ? (
-        <nav className="tabbar" aria-label="Main">
-          {ADMIN_TABS.map((t) => (
+      <nav className="tabbar tabbar-bottom" aria-label="Main">
+        {groups.map((g) => {
+          const active = group.key === g.key;
+          return (
             <button
-              key={t.key}
-              className={`tab ${tab === t.key ? "tab-active" : ""}`}
-              aria-current={tab === t.key ? "page" : undefined}
-              onClick={() => setTab(t.key)}
+              key={g.key}
+              className={`tab ${active ? "tab-active" : ""}`}
+              aria-current={active ? "page" : undefined}
+              onClick={() => !active && setTab(g.leaves[0].key)}
             >
-              {t.icon}
-              {t.label}
-              {t.key === "notifications" && unread > 0 && <span className="badge">{unread}</span>}
+              {g.icon}
+              {g.label}
+              {g.key === "notifications" && unread > 0 && <span className="badge">{unread}</span>}
+            </button>
+          );
+        })}
+      </nav>
+      {group.leaves.length > 1 && (
+        <nav className="subtabs" aria-label={`${group.label} sections`}>
+          {group.leaves.map((l) => (
+            <button
+              key={l.key}
+              className={`subtab ${tab === l.key ? "on" : ""}`}
+              aria-current={tab === l.key ? "page" : undefined}
+              onClick={() => setTab(l.key)}
+            >
+              {l.label}
             </button>
           ))}
         </nav>
-      ) : (
-        <>
-          <nav className="tabbar tabbar-bottom" aria-label="Main">
-            {EMP_GROUPS.map((g) => {
-              const active = group.key === g.key;
-              return (
-                <button
-                  key={g.key}
-                  className={`tab ${active ? "tab-active" : ""}`}
-                  aria-current={active ? "page" : undefined}
-                  onClick={() => !active && setTab(g.leaves[0].key)}
-                >
-                  {g.icon}
-                  {g.label}
-                  {g.key === "notifications" && unread > 0 && <span className="badge">{unread}</span>}
-                </button>
-              );
-            })}
-          </nav>
-          {group.leaves.length > 1 && (
-            <nav className="subtabs" aria-label={`${group.label} sections`}>
-              {group.leaves.map((l) => (
-                <button
-                  key={l.key}
-                  className={`subtab ${tab === l.key ? "on" : ""}`}
-                  aria-current={tab === l.key ? "page" : undefined}
-                  onClick={() => setTab(l.key)}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </nav>
-          )}
-        </>
       )}
 
       <main className="content">
         {currentUser.isAdmin ? (
-          <AdminPanels tab={tab} data={data} persist={persist} notify={notify} showToast={showToast} />
+          <AdminPanels tab={tab} data={data} persist={persist} notify={notify} showToast={showToast} goTo={setTab} unreadAlerts={unread} />
         ) : (
           <EmployeePanels
             tab={tab}
@@ -362,14 +345,15 @@ const EMP_GROUPS = [
   { key: "requests", label: "Requests", icon: <Inbox size={15} />, leaves: [{ key: "swaps", label: "Swaps" }, { key: "leave", label: "Leave" }] },
   { key: "notifications", label: "Alerts", icon: <Bell size={15} />, leaves: [{ key: "notifications", label: "Alerts" }] },
 ];
-const ADMIN_TABS = [
-  { key: "daily", label: "Daily Breakdown", icon: <Clock size={15} /> },
-  { key: "builder", label: "Schedule Builder", icon: <Calendar size={15} /> },
-  { key: "approve", label: "Approve AI draft", icon: <ClipboardCheck size={15} /> },
-  { key: "team", label: "Team Availability", icon: <User size={15} /> },
-  { key: "swapapprovals", label: "Swap Approvals", icon: <Repeat size={15} /> },
-  { key: "leaveapprovals", label: "Leave Requests", icon: <Send size={15} /> },
-  { key: "notifications", label: "Alerts", icon: <Bell size={15} /> },
+const ADMIN_GROUPS = [
+  { key: "home", label: "Home", icon: <Home size={15} />, leaves: [{ key: "home", label: "Home" }] },
+  {
+    key: "schedule", label: "Schedule", icon: <Calendar size={15} />,
+    leaves: [{ key: "builder", label: "Build" }, { key: "daily", label: "Daily breakdown" }, { key: "approve", label: "AI draft" }],
+  },
+  { key: "requests", label: "Requests", icon: <Inbox size={15} />, leaves: [{ key: "swapapprovals", label: "Swaps" }, { key: "leaveapprovals", label: "Leave" }] },
+  { key: "team", label: "Team", icon: <User size={15} />, leaves: [{ key: "team", label: "Availability" }] },
+  { key: "notifications", label: "Alerts", icon: <Bell size={15} />, leaves: [{ key: "notifications", label: "Alerts" }] },
 ];
 
 function LoginScreen({ data, persist, newName, setNewName, onSelect }) {
@@ -852,7 +836,8 @@ function NotificationsTab({ data, persist, audience }) {
 }
 
 /* ---------- ADMIN PANELS ---------- */
-function AdminPanels({ tab, data, persist, notify, showToast }) {
+function AdminPanels({ tab, data, persist, notify, showToast, goTo, unreadAlerts }) {
+  if (tab === "home") return <ManagerHome data={data} goTo={goTo} unreadAlerts={unreadAlerts} />;
   if (tab === "daily") return <DailyBreakdown data={data} />;
   if (tab === "builder") return <ScheduleBuilder data={data} persist={persist} notify={notify} showToast={showToast} />;
   if (tab === "approve") return <ApprovalView showToast={showToast} />;
@@ -1305,6 +1290,13 @@ input:focus, select:focus { outline: 2px solid var(--indigo); outline-offset: 1p
 .home-action { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-raised); color: var(--ink); font-family:'IBM Plex Sans'; font-size: 1rem; font-weight: 500; text-align: left; cursor: pointer; }
 .home-action span { flex: 1; }
 .home-action:hover { border-color: var(--primary); background: var(--primary-bg); }
+.home-need { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.home-need-sub { display: block; }
+.home-alerts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.link-btn { background: none; border: none; padding: 0; min-height: 0; color: var(--primary); font-weight: 600; text-decoration: underline; cursor: pointer; font-size: inherit; }
+.home-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 4px; }
+.home-stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-raised); }
+.home-stat strong { font-family: 'Space Grotesk', sans-serif; font-size: 1.3rem; }
 .home-attn { display: flex; align-items: center; gap: 8px; color: var(--warm); font-weight: 500; }
 @media (max-width: 640px) {
   .tabbar-bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; justify-content: space-around; gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); border-bottom: none; }
