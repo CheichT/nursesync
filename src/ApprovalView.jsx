@@ -720,10 +720,17 @@ export default function ApprovalView({ showToast }) {
           Start weekly run
         </h3>
         <p className="muted small">
-          Posts to the local API, then polls until the draft is ready. Mock data only: unit {DEFAULT_RUN_UNIT},
-          week of {DEFAULT_RUN_WEEK}. Costs about $0.50–$1.50 and needs NURSESYNC_LIVE=1. One run at a time;
-          daily paid-ops cap applies. Not secure — this computer only.
+          Builds a draft schedule for next week with the AI agents. It costs about $0.50–$1.50 and takes a couple of
+          minutes. Nothing is final until you approve it.
         </p>
+        <details className="approval-tech">
+          <summary>Technical notes</summary>
+          <p className="muted small">
+            Mock data only: unit {DEFAULT_RUN_UNIT}, week of {DEFAULT_RUN_WEEK}. Posts to the local API, then checks every
+            5 seconds until the draft is ready. Needs NURSESYNC_LIVE=1. One run at a time; a daily limit on paid runs
+            applies. Not secure: this computer only, no login.
+          </p>
+        </details>
         <div className="approval-run-row">
           <label className="approval-sample">
             Unit

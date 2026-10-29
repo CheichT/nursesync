@@ -9,6 +9,7 @@ Employee scheduling app (React + Vite). Employees mark availability, admin build
 
 ## Code map
 - `src/App.jsx` — whole app (single file for now): login, employee tabs, admin tabs, styles in `GLOBAL_CSS`
+- `src/themes.js` (6 palettes, light and dark), `src/AppearanceMenu.jsx` (Choose your look), `src/NurseHome.jsx`, `src/ManagerHome.jsx` (home screens). `npm run build` also checks palette contrast (4.5 to 1).
 - `src/storage.js` — localStorage stand-in for `window.storage`. Per-device only, not shared between users. Replace with a real backend later.
 - Data shape (see `emptyData()` in App.jsx): roster, availability, shifts, swaps, leave, notifications
 
@@ -31,9 +32,7 @@ Employee scheduling app (React + Vite). Employees mark availability, admin build
 - [ ] Accessibility: headings in logical order, status not shown by color alone, text contrast OK
 
 ## Known gaps (good first tasks)
-- Icon-only buttons (pencil, theme toggle, calendar arrows) lack aria-labels
-- Modals don't trap focus or close on Esc
-- Calendar days have no accessible names
+- Modals close on Esc but don't trap focus
 - Schedule Builder still uses a plain date input
 - Swap is one-way handoff, not a two-way trade
 

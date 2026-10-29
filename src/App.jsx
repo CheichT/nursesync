@@ -61,7 +61,7 @@ const shiftMonth = (y, m, delta) => {
   return { year: dt.getFullYear(), month: dt.getMonth() };
 };
 
-function MonthCalendar({ year, month, onPrev, onNext, selectedDate, onSelectDate, dayContent }) {
+function MonthCalendar({ year, month, onPrev, onNext, selectedDate, onSelectDate, dayContent, dayLabel }) {
   const first = new Date(year, month, 1);
   const startWeekday = first.getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -91,6 +91,8 @@ function MonthCalendar({ year, month, onPrev, onNext, selectedDate, onSelectDate
               key={i}
               className={`cal-cell ${selectedDate === ds ? "selected" : ""} ${ds === todayStr ? "is-today" : ""}`}
               onClick={() => onSelectDate(ds)}
+              aria-label={`${fmtDate(ds)}${dayLabel && dayLabel(ds) ? `, ${dayLabel(ds)}` : ""}`}
+              aria-pressed={selectedDate === ds}
             >
               <span className="cal-daynum">{d}</span>
               {dayContent ? dayContent(ds) : null}
@@ -489,7 +491,15 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
   const dayContent = (ds) => {
     const v = mine[ds];
     if (!v) return null;
-    return <span className={`cal-dot ${v.status === "unavailable" ? "dot-brick" : "dot-teal"}`} />;
+    return v.status === "unavailable"
+      ? <span className="cal-mark no" aria-hidden="true">✕</span>
+      : <span className="cal-mark ok" aria-hidden="true">✓</span>;
+  };
+
+  const dayLabel = (ds) => {
+    const v = mine[ds];
+    if (!v) return "";
+    return v.status === "unavailable" ? `unavailable${v.reason ? ` (${v.reason})` : ""}` : "available";
   };
 
   const save = async () => {
@@ -510,7 +520,7 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
   return (
     <div className="panel">
       <h2>Mark your availability</h2>
-      <p className="muted">Tap a day to plot it — green means available, red means unavailable.</p>
+      <p className="muted">Tap a day to mark it. ✓ means available, ✕ means unavailable.</p>
       <div className="card">
         <MonthCalendar
           year={viewYear}
@@ -520,6 +530,7 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
           selectedDate={date}
           onSelectDate={pickDay}
           dayContent={dayContent}
+          dayLabel={dayLabel}
         />
       </div>
 
@@ -1145,10 +1156,12 @@ ${paletteCss()}
   font-family: 'IBM Plex Sans', sans-serif;
   color: var(--ink);
   background: var(--paper);
-  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
 }
 .scheduler-root * { box-sizing: border-box; }
+.scheduler-root :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .scheduler-root.dark {
   --ink: #ECEFE9;
   --paper: #14181F;
@@ -1182,7 +1195,7 @@ ${paletteCss()}
   .appearance-panel { position: fixed; left: 16px; right: 16px; top: 64px; width: auto; max-width: none; }
 }
 .center-screen { position: relative; }
-.center-screen { display:flex; align-items:center; justify-content:center; min-height: 400px; }
+.center-screen { display:flex; align-items:center; justify-content:center; min-height: max(400px, 100vh); min-height: max(400px, 100dvh); }
 
 .cal { width: 100%; }
 .cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px; font-family:'Space Grotesk', sans-serif; }
@@ -1196,9 +1209,10 @@ ${paletteCss()}
 .cal-cell.selected { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .cal-cell.is-today:not(.selected) { border-color: var(--indigo); border-width: 2px; }
 .cal-daynum { font-weight: 500; }
-.cal-dot { width: 5px; height: 5px; border-radius: 50%; display:block; }
-.dot-teal { background: var(--teal); }
-.dot-brick { background: var(--brick); }
+.cal-mark { font-size: 0.72rem; font-weight: 700; line-height: 1; }
+.cal-mark.ok { color: var(--teal); }
+.cal-mark.no { color: var(--brick); }
+.cal-cell.selected .cal-mark { color: inherit; }
 .loader { font-family:'IBM Plex Mono', monospace; letter-spacing: 0.05em; color: var(--ink); }
 
 h1,h2,h3 { font-family: 'Space Grotesk', sans-serif; margin: 0 0 4px; }
@@ -1210,7 +1224,7 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 
 .brand { display:flex; align-items:center; gap:10px; }
 .brand-mark { font-family:'Space Grotesk', sans-serif; font-weight:700; background: var(--primary); color: var(--on-primary); border-radius: 6px; padding: 4px 9px; font-size: 0.85rem; letter-spacing: 0.03em; }
-.brand-mark.big { font-size: 1.4rem; padding: 10px 16px; border-radius: 10px; }
+.brand-mark.big { display: inline-block; margin-bottom: 10px; font-size: 1.4rem; padding: 10px 16px; border-radius: 10px; }
 .brand-name { font-family:'Space Grotesk', sans-serif; font-weight:700; font-size: 1.1rem; }
 
 .topbar { display:flex; justify-content:space-between; align-items:center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--paper-raised); flex-wrap: wrap; gap: 10px; }
@@ -1226,6 +1240,8 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .content { max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; }
 .content:has(.approval-panel) { max-width: 980px; }
 .panel-head { display:flex; justify-content:space-between; align-items:center; }
+.approval-tech { margin: 4px 0 8px; }
+.approval-tech summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); }
 .approval-sample { display:flex; flex-direction:column; gap:4px; font-size:0.8rem; font-weight:600; min-width: 220px; max-width: 100%; }
 .approval-sample select { max-width: 100%; text-overflow: ellipsis; }
 .approval-source-controls { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
