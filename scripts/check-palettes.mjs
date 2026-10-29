@@ -9,7 +9,7 @@ const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lu
 
 const pairs = [
   ["ink", "paper"], ["ink", "raised"], ["muted", "paper"], ["muted", "raised"], ["ink", "primaryBg"],
-  ["onPrimary", "primary"], ["primary", "paper"], ["primary", "raised"], ["primary", "primaryBg"], ["warm", "warmBg"],
+  ["onPrimary", "primary"], ["primary", "paper"], ["primary", "raised"], ["primary", "primaryBg"], ["warm", "warmBg"], ["warm", "raised"], ["warm", "paper"],
 ];
 let bad = 0;
 for (const p of PALETTES) {

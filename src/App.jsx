@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Calendar, AlertTriangle, Bell, CheckCircle, XCircle, Repeat,
-  Clock, User, Shield, Plus, LogOut, Trash2, ChevronRight, Send, Pencil, ClipboardCheck
+  Clock, User, Shield, Plus, LogOut, Trash2, ChevronRight, Send, Pencil, ClipboardCheck, Home, Inbox
 } from "lucide-react";
 import ApprovalView from "./ApprovalView";
 import AppearanceMenu from "./AppearanceMenu";
+import NurseHome from "./NurseHome";
 import { DEFAULT_PALETTE, isPalette, paletteCss } from "./themes";
 
 const STORAGE_KEY = "scheduler-data";
@@ -218,7 +219,7 @@ export default function App() {
           persist={persist}
           newName={newName}
           setNewName={setNewName}
-          onSelect={(u) => { setCurrentUser(u); setTab(u.isAdmin ? "builder" : "availability"); }}
+          onSelect={(u) => { setCurrentUser(u); setTab(u.isAdmin ? "builder" : "home"); }}
         />
       </div>
     );
@@ -228,6 +229,7 @@ export default function App() {
     .filter((n) => n.audience === (currentUser.isAdmin ? "admin" : currentUser.id))
     .sort((a, b) => b.ts - a.ts);
   const unread = myNotifs.filter((n) => !n.read).length;
+  const group = EMP_GROUPS.find((g) => g.leaves.some((l) => l.key === tab)) || EMP_GROUPS[0];
 
   return (
     <div className={`scheduler-root pal-${palette} ${isDark ? "dark" : ""}`}>
@@ -257,19 +259,56 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="tabbar">
-        {(currentUser.isAdmin ? ADMIN_TABS : EMP_TABS).map((t) => (
-          <button
-            key={t.key}
-            className={`tab ${tab === t.key ? "tab-active" : ""}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.icon}
-            {t.label}
-            {t.key === "notifications" && unread > 0 && <span className="badge">{unread}</span>}
-          </button>
-        ))}
-      </nav>
+      {currentUser.isAdmin ? (
+        <nav className="tabbar" aria-label="Main">
+          {ADMIN_TABS.map((t) => (
+            <button
+              key={t.key}
+              className={`tab ${tab === t.key ? "tab-active" : ""}`}
+              aria-current={tab === t.key ? "page" : undefined}
+              onClick={() => setTab(t.key)}
+            >
+              {t.icon}
+              {t.label}
+              {t.key === "notifications" && unread > 0 && <span className="badge">{unread}</span>}
+            </button>
+          ))}
+        </nav>
+      ) : (
+        <>
+          <nav className="tabbar tabbar-bottom" aria-label="Main">
+            {EMP_GROUPS.map((g) => {
+              const active = group.key === g.key;
+              return (
+                <button
+                  key={g.key}
+                  className={`tab ${active ? "tab-active" : ""}`}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => !active && setTab(g.leaves[0].key)}
+                >
+                  {g.icon}
+                  {g.label}
+                  {g.key === "notifications" && unread > 0 && <span className="badge">{unread}</span>}
+                </button>
+              );
+            })}
+          </nav>
+          {group.leaves.length > 1 && (
+            <nav className="subtabs" aria-label={`${group.label} sections`}>
+              {group.leaves.map((l) => (
+                <button
+                  key={l.key}
+                  className={`subtab ${tab === l.key ? "on" : ""}`}
+                  aria-current={tab === l.key ? "page" : undefined}
+                  onClick={() => setTab(l.key)}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </nav>
+          )}
+        </>
+      )}
 
       <main className="content">
         {currentUser.isAdmin ? (
@@ -282,6 +321,8 @@ export default function App() {
             notify={notify}
             currentUser={currentUser}
             showToast={showToast}
+            goTo={setTab}
+            unreadAlerts={unread}
           />
         )}
       </main>
@@ -311,13 +352,15 @@ export default function App() {
   );
 }
 
-const EMP_TABS = [
-  { key: "week", label: "My Week", icon: <Calendar size={15} /> },
-  { key: "availability", label: "Availability", icon: <Calendar size={15} /> },
-  { key: "shifts", label: "My Shifts", icon: <Clock size={15} /> },
-  { key: "swaps", label: "Swaps", icon: <Repeat size={15} /> },
-  { key: "leave", label: "Leave", icon: <Send size={15} /> },
-  { key: "notifications", label: "Alerts", icon: <Bell size={15} /> },
+// Nurse navigation: four top-level tabs. Schedule and Requests hold the older screens as sections.
+const EMP_GROUPS = [
+  { key: "home", label: "Home", icon: <Home size={15} />, leaves: [{ key: "home", label: "Home" }] },
+  {
+    key: "schedule", label: "Schedule", icon: <Calendar size={15} />,
+    leaves: [{ key: "week", label: "My week" }, { key: "shifts", label: "My shifts" }, { key: "availability", label: "Availability" }],
+  },
+  { key: "requests", label: "Requests", icon: <Inbox size={15} />, leaves: [{ key: "swaps", label: "Swaps" }, { key: "leave", label: "Leave" }] },
+  { key: "notifications", label: "Alerts", icon: <Bell size={15} />, leaves: [{ key: "notifications", label: "Alerts" }] },
 ];
 const ADMIN_TABS = [
   { key: "daily", label: "Daily Breakdown", icon: <Clock size={15} /> },
@@ -370,7 +413,8 @@ function LoginScreen({ data, persist, newName, setNewName, onSelect }) {
 }
 
 /* ---------- EMPLOYEE PANELS ---------- */
-function EmployeePanels({ tab, data, persist, notify, currentUser, showToast }) {
+function EmployeePanels({ tab, data, persist, notify, currentUser, showToast, goTo, unreadAlerts }) {
+  if (tab === "home") return <NurseHome data={data} currentUser={currentUser} goTo={goTo} unreadAlerts={unreadAlerts} />;
   if (tab === "week") return <MyWeekTab data={data} currentUser={currentUser} />;
   if (tab === "availability") return <AvailabilityTab data={data} persist={persist} currentUser={currentUser} showToast={showToast} />;
   if (tab === "shifts") return <MyShiftsTab data={data} persist={persist} notify={notify} currentUser={currentUser} showToast={showToast} />;
@@ -1242,6 +1286,31 @@ input:focus, select:focus { outline: 2px solid var(--indigo); outline-offset: 1p
 .icon-btn { background:transparent; border:none; cursor:pointer; color: var(--muted); padding: 6px; border-radius: 6px; }
 .icon-btn:hover { background: var(--paper); color: var(--brick); }
 
+.scheduler-root button, .scheduler-root input, .scheduler-root select, .scheduler-root textarea { font-family: inherit; }
+.subtabs { display:flex; gap: 6px; padding: 8px 16px; overflow-x:auto; background: var(--paper-raised); border-bottom: 1px solid var(--line); }
+.subtab { min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-family:'IBM Plex Sans'; font-size: 0.85rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.subtab.on { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.home h2 { margin: 0 0 14px; }
+.home-date { margin: 0 0 2px; }
+.home-next { background: var(--primary-bg); border-radius: 14px; padding: 16px 18px; }
+.home-next-label { margin: 0; font-size: 0.78rem; color: var(--primary); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.home-next-main { margin: 2px 0 0; font-family:'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.3rem; color: var(--primary); }
+.home-next-sub { margin: 4px 0 0; font-size: 0.88rem; color: var(--ink); }
+.home-week { list-style: none; margin: 0 0 8px; padding: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.home-day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; border: 1px solid var(--line); border-radius: 10px; font-size: 0.72rem; color: var(--muted); background: var(--paper-raised); }
+.home-day.work { background: var(--primary); border-color: var(--primary); color: var(--on-primary); font-weight: 600; }
+.home-day.today { outline: 2px solid var(--ink); outline-offset: 2px; }
+.home-day-num { font-size: 1rem; font-family:'Space Grotesk', sans-serif; font-weight: 700; }
+.home-actions { display: grid; gap: 8px; }
+.home-action { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-raised); color: var(--ink); font-family:'IBM Plex Sans'; font-size: 1rem; font-weight: 500; text-align: left; cursor: pointer; }
+.home-action span { flex: 1; }
+.home-action:hover { border-color: var(--primary); background: var(--primary-bg); }
+.home-attn { display: flex; align-items: center; gap: 8px; color: var(--warm); font-weight: 500; }
+@media (max-width: 640px) {
+  .tabbar-bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; justify-content: space-around; gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); border-bottom: none; }
+  .tabbar-bottom .tab { flex: 1; flex-direction: column; gap: 2px; font-size: 0.72rem; min-height: 52px; padding: 6px 4px; justify-content: center; }
+  .scheduler-root:has(.tabbar-bottom) .content { padding-bottom: 96px; }
+}
 .stack { display:flex; flex-direction:column; gap: 8px; }
 .row-card { display:flex; justify-content:space-between; align-items:center; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; gap: 10px; flex-wrap: wrap; }
 .row-card.unread { border-left: 3px solid var(--indigo); }
