@@ -858,7 +858,9 @@ function LeaveTab({ data, persist, notify, currentUser, showToast, prefill, onPr
           <label>Start<input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label>End<input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
         </div>
-        <label>Note<input value={note} onChange={(e) => setNote(e.target.value)} placeholder={type === "overtime" ? "How many extra hours, and why" : type === "dayoff" ? "Reason (optional)" : "Optional details"} /></label>
+        <div className="form-row">
+          <label>Note<input value={note} onChange={(e) => setNote(e.target.value)} placeholder={type === "overtime" ? "How many extra hours, and why" : type === "dayoff" ? "Reason (optional)" : "Optional details"} /></label>
+        </div>
         <button className="primary-btn" onClick={submit}><Send size={14} /> Submit request</button>
       </div>
 

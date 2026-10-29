@@ -25,7 +25,7 @@ were accepted on 2026-10-28.
 ```bash
 npm install && npm run dev                     # the app at http://localhost:5173 (log in as "Acting Supervisor")
 npm run build                                  # must pass before finishing any task
-cd backend && ../.venv/bin/python -m pytest -q # 375 tests, no API calls, no cost
+cd backend && ../.venv/bin/python -m pytest -q # 397 tests, no API calls, no cost
 cd backend && ../.venv/bin/python -m app.serve --seed-samples   # case API at http://127.0.0.1:8000 (docs at /docs)
 cd backend && ../.venv/bin/python -m app.check_connection       # one tiny live call; never prints the key
 cd backend && ../.venv/bin/python -m app.run_eval case_10 --runs 3   # live evals cost money (see below)
@@ -63,6 +63,7 @@ code overrides an agent). Every POST to the API needs `Content-Type: application
 | Evals | `backend/app/run_eval.py`, `harness/eval_scoring.py`, cards in `backend/evals/phase1/` |
 | Test data | `backend/data/mock/`, `backend/data/scenarios/`, `docs/sample-cases/` |
 | App look and homes | `src/themes.js` (6 palettes; `scripts/check-palettes.mjs` runs in the build), `src/AppearanceMenu.jsx`, `src/NurseHome.jsx`, `src/ManagerHome.jsx` |
+| Requests and popups | Day-off requests share the Leave flow in `src/App.jsx` (Pending, Approved, Denied; approved leave shows as a scheduling conflict). `src/DayDetail.jsx` is the click-a-shift popup on the AI draft. Schedule Builder offers Day or Night only. |
 
 ## Cost (live agents, rough estimates)
 
@@ -84,6 +85,8 @@ locked changes. See `backend/evals/phase1/RESULTS.md`.
   through the API are done, and the approval view has a Report call-out action and shows nurse names.)
 - Real Shift Board data in place of mock files; Availability batching for units of about 50 nurses (output is cut off
   and rows become `missing`, never guessed); wire `get_callouts` into the Availability agent for weekly runs.
+- The app's day-off requests live in the browser and are **not** read by the AI scheduler yet (that needs the Shift
+  Board source above). Known small gap: a leave record with an unknown type can blank the Leave screen.
 - A call-out after a case is approved (the PRD only covers one still waiting); a login.
 - Kerrian leftovers from 2026-10-28: Agent notes for `unusual`, case 10 card + ×3 RESULTS, and contract sign-off notes
   on `models.py` / `case_record.py` (shipped on her follow-up PR).

@@ -32,6 +32,7 @@ Nurse managers spend hours every week building schedules by hand. Staffing needs
   </tr>
   <tr>
     <td valign="top"><img src="docs/screenshots/03-availability.jpg" width="190" alt="Availability popup: Available or Not available, with a Reason list"><br><sub><b>Availability.</b> Tap a day, choose Available or Not available, pick a reason.</sub></td>
+    <td valign="top"><img src="docs/screenshots/08-leave-requests.jpg" width="190" alt="Request time off: a form, then three requests marked Pending, Approved and Denied"><br><sub><b>Ask for time off.</b> Each request shows Pending, Approved or Denied until the manager decides.</sub></td>
     <td valign="top"><img src="docs/screenshots/01-login.jpg" width="190" alt="Login screen: pick a name"><br><sub><b>Pick-a-name login.</b> There is no real sign-in yet, and the app says so.</sub></td>
   </tr>
 </table>
