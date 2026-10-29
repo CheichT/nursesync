@@ -467,9 +467,11 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [date, setDate] = useState(today());
-  const [status, setStatus] = useState("unavailable");
-  const [reason, setReason] = useState(REASONS[0]);
+  const [open, setOpen] = useState(false); // the day popup
+  const [status, setStatus] = useState(""); // "available" | "unavailable" | "" (not chosen yet)
+  const [reason, setReason] = useState(""); // "" shows the "Reason" placeholder
   const [note, setNote] = useState("");
+  const [error, setError] = useState("");
 
   const mine = data.availability[currentUser.id] || {};
   const entries = Object.entries(mine).sort((a, b) => a[0].localeCompare(b[0]));
@@ -477,15 +479,11 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
   const pickDay = (ds) => {
     setDate(ds);
     const existing = mine[ds];
-    if (existing) {
-      setStatus(existing.status);
-      setReason(existing.reason || REASONS[0]);
-      setNote(existing.note || "");
-    } else {
-      setStatus("unavailable");
-      setReason(REASONS[0]);
-      setNote("");
-    }
+    setStatus(existing ? existing.status : "");
+    setReason(existing?.reason || "");
+    setNote(existing?.note || "");
+    setError("");
+    setOpen(true);
   };
 
   const dayContent = (ds) => {
@@ -503,11 +501,17 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
   };
 
   const save = async () => {
-    if (!date) return;
-    const nextMine = { ...mine, [date]: { status, reason: status === "unavailable" ? reason : null, note } };
-    const next = { ...data, availability: { ...data.availability, [currentUser.id]: nextMine } };
-    await persist(next);
-    setNote("");
+    if (!status) {
+      setError("Choose Available or Unavailable.");
+      return;
+    }
+    if (status === "unavailable" && !reason) {
+      setError("Choose a reason.");
+      return;
+    }
+    const nextMine = { ...mine, [date]: { status, reason: status === "unavailable" ? reason : null, note: status === "unavailable" ? note : "" } };
+    await persist({ ...data, availability: { ...data.availability, [currentUser.id]: nextMine } });
+    setOpen(false);
     showToast("Availability saved.");
   };
 
@@ -515,6 +519,12 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
     const nextMine = { ...mine };
     delete nextMine[d];
     await persist({ ...data, availability: { ...data.availability, [currentUser.id]: nextMine } });
+  };
+
+  const clearDay = async () => {
+    await remove(date);
+    setOpen(false);
+    showToast("Day cleared.");
   };
 
   return (
@@ -534,30 +544,42 @@ function AvailabilityTab({ data, persist, currentUser, showToast }) {
         />
       </div>
 
-      <div className="card form-card">
-        <strong>{fmtDate(date)}</strong>
-        <div className="form-row">
-          <label>Status
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="unavailable">Unavailable</option>
-              <option value="available">Available</option>
-            </select>
-          </label>
-        </div>
-        {status === "unavailable" && (
-          <div className="form-row">
-            <label>Reason
-              <select value={reason} onChange={(e) => setReason(e.target.value)}>
-                {REASONS.map((r) => <option key={r}>{r}</option>)}
-              </select>
-            </label>
-            <label>Note (optional)
-              <input placeholder="e.g. dentist at 2pm" value={note} onChange={(e) => setNote(e.target.value)} />
-            </label>
+      {open && (
+        <Modal title={fmtDate(date)} onClose={() => setOpen(false)}>
+          <fieldset className="choice-group">
+            <legend>Are you available?</legend>
+            <div className="choice-row">
+              <label className={`choice ${status === "available" ? "on" : ""}`}>
+                <input type="radio" name="avail-status" value="available" autoFocus checked={status === "available"} onChange={() => { setStatus("available"); setError(""); }} />
+                <span className="choice-mark ok" aria-hidden="true">✓</span> Available
+              </label>
+              <label className={`choice ${status === "unavailable" ? "on" : ""}`}>
+                <input type="radio" name="avail-status" value="unavailable" checked={status === "unavailable"} onChange={() => { setStatus("unavailable"); setError(""); }} />
+                <span className="choice-mark no" aria-hidden="true">✕</span> Not available
+              </label>
+            </div>
+          </fieldset>
+          {status === "unavailable" && (
+            <>
+              <label>Reason
+                <select value={reason} onChange={(e) => { setReason(e.target.value); setError(""); }} aria-label="Reason">
+                  <option value="" disabled>Reason</option>
+                  {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+              <label>Note (optional)
+                <input placeholder="e.g. dentist at 2pm" value={note} onChange={(e) => setNote(e.target.value)} />
+              </label>
+            </>
+          )}
+          {error && <p className="approval-error" role="alert">{error}</p>}
+          <div className="ticket-actions">
+            <button type="button" className="primary-btn" onClick={save}><CheckCircle size={15} /> Save</button>
+            <button type="button" className="ghost-btn" onClick={() => setOpen(false)}>Cancel</button>
+            {mine[date] && <button type="button" className="ghost-btn" onClick={clearDay}>Clear this day</button>}
           </div>
-        )}
-        <button className="primary-btn" onClick={save}><Plus size={15} /> Save</button>
-      </div>
+        </Modal>
+      )}
 
       <h3 className="section-label">Your marked days</h3>
       {entries.length === 0 && <p className="muted">Nothing marked yet.</p>}
@@ -1209,6 +1231,16 @@ ${paletteCss()}
 .cal-cell.selected { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .cal-cell.is-today:not(.selected) { border-color: var(--indigo); border-width: 2px; }
 .cal-daynum { font-weight: 500; }
+.choice-group { border: none; margin: 0 0 12px; padding: 0; min-width: 0; }
+.choice-group legend { padding: 0; margin-bottom: 8px; font-size: 0.85rem; font-weight: 600; }
+.choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.choice { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-raised); color: var(--ink); font-weight: 600; cursor: pointer; }
+.choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.choice.on { border-color: var(--primary); background: var(--primary-bg); }
+.choice:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.choice-mark { font-weight: 700; }
+.choice-mark.ok { color: var(--teal); }
+.choice-mark.no { color: var(--brick); }
 .cal-mark { font-size: 0.72rem; font-weight: 700; line-height: 1; }
 .cal-mark.ok { color: var(--teal); }
 .cal-mark.no { color: var(--brick); }
@@ -1272,8 +1304,10 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .card { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
 .form-card { display:flex; flex-direction:column; gap: 12px; }
 .form-row { display:flex; gap: 12px; flex-wrap: wrap; }
-.form-row label, .modal-body label { flex:1; min-width: 140px; display:flex; flex-direction:column; gap:4px; font-size: 0.8rem; font-weight:600; color:#4A5049; }
+.form-row label, .modal-body label { flex:1; min-width: 140px; display:flex; flex-direction:column; gap:4px; font-size: 0.8rem; font-weight:600; color: var(--muted); }
 .modal-body label { margin-bottom: 12px; }
+.modal-body select, .modal-body input:not([type=radio]) { min-height: 44px; }
+.modal-body .choice { flex-direction: row; flex: none; min-width: 0; margin-bottom: 0; font-size: 0.95rem; color: var(--ink); }
 
 input, select { font-family:'IBM Plex Sans'; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); font-size: 0.9rem; color: var(--ink); }
 input:focus, select:focus { outline: 2px solid var(--indigo); outline-offset: 1px; }
