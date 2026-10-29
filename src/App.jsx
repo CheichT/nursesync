@@ -1288,6 +1288,14 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .approval-grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .approval-grid { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 640px; }
 .approval-grid th, .approval-grid td { border: 1px solid var(--line); padding: 8px 6px; vertical-align: top; text-align: left; }
+.approval-cell-btn { display: block; width: 100%; min-height: 44px; padding: 0; border: none; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 6px; }
+.approval-cell-btn:hover { background: var(--primary-bg); }
+.day-detail-sub { margin: 0; }
+.day-detail-count { margin: 0 0 8px; }
+.day-detail-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+.day-detail-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.day-detail-list code { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; padding: 2px 8px; border-radius: 6px; background: var(--primary-bg); color: var(--primary); }
+.modal-card.day-detail { max-width: 420px; max-height: 85vh; overflow: auto; }
 .approval-grid th { background: var(--paper); font-weight: 600; }
 .approval-nurses { font-family:'IBM Plex Mono', monospace; font-size: 0.72rem; word-break: break-word; }
 .approval-gap-tag { margin-top: 4px; font-size: 0.7rem; font-weight: 600; color: var(--brick); }

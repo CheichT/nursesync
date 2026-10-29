@@ -83,6 +83,11 @@ Use text labels, not color alone (e.g. “Hard — rest time”, “Soft — fai
 - Week grid for the unit: each date × day/night from `final_draft.assignments`
 - Shift times `07:00`–`19:00` / `19:00`–`07:00`
 
+Each cell of the grid is a button. Clicking (or Enter on) a cell opens a popup for that date and shift: a heading with
+the date and shift time, "N nurses working · M needed", the open-gap note when the shift is short, and each nurse
+with **name and nurse id** (names come from `GET /api/roster`; if it fails the id still shows). Esc, Close or a click
+outside closes it and focus returns to the cell. Read-only: nothing in the popup changes the case.
+
 #### 3. Reasoning notes
 
 - `final_draft.notes` as a short list (manager-facing, not for `check_rules`)
