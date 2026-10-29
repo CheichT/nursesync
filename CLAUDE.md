@@ -61,7 +61,7 @@ NurseSync = the scheduling app above + 4 AI agents that draft the weekly nurse s
 - `missing`: leave the shift or nurse unscheduled, list it as an open gap, never guess.
 - `needs_review`: use the value and add a flag to the reasoning notes.
 - `check_rules` reads only `assignments` + the snapshot.
-- Violation fields: rule (`rest_time`, `weekly_hours`, `consecutive_shifts`, `certification`, `availability`, `coverage`), severity (`hard`/`soft`), nurse_id (empty for coverage), date, shift, found, limit, `fix_hint`.
+- Violation fields: rule (`one_shift_per_day`, `rest_time`, `weekly_hours`, `consecutive_shifts`, `certification`, `availability`, `coverage`), severity (`hard`/`soft`), nurse_id (empty for coverage), date, shift, found, limit, `fix_hint`.
 - Fix order for hard violations: coverage and availability first, then the rest by date and then shift. Ignore soft tradeoffs while fixing.
 - Unfixable violation: add an unfixable row (rule, nurse_id, date, shift, one plain sentence why) and leave the shift as an open gap. Never invent a nurse.
 

@@ -27,6 +27,8 @@ import {
   formatCaseOption,
 } from "./caseApi";
 import DayDetail from "./DayDetail";
+import ConfirmDialog from "./ConfirmDialog";
+import DecisionPanel from "./DecisionPanel";
 
 const SHIFT_LABEL = { day: "Day 07:00–19:00", night: "Night 19:00–07:00" };
 /** Mock data only for now (Cheich #46). */
@@ -198,6 +200,7 @@ export default function ApprovalView({ showToast }) {
   const [names, setNames] = useState({});
   const [dayDetail, setDayDetail] = useState(null); // { date, shift } of the open popup
   const [callOutOpen, setCallOutOpen] = useState(false);
+  const [confirm, setConfirm] = useState(null); // { title, message, confirmLabel, run } for the in-app confirm dialog
   const [callOutPick, setCallOutPick] = useState("");
   const runPollRef = useRef(null);
 
@@ -386,7 +389,17 @@ export default function ApprovalView({ showToast }) {
       const cases = data.cases || [];
       setCaseList(cases);
       const building = cases.find((c) => c.status === "building");
-      const pick = building?.case_id || cases[0]?.case_id || "";
+      const newestWaiting = cases
+        .filter((c) => c.status === "waiting_approval")
+        .sort(
+          (a, b) =>
+            Number(a.outcome !== "stopped_missing_input") - Number(b.outcome !== "stopped_missing_input") ||
+            (a.start_time || "").localeCompare(b.start_time || "") ||
+            a.case_id.localeCompare(b.case_id)
+        )
+        .pop();
+      // Open a case the manager can act on first, so the action buttons are not greyed out on arrival.
+      const pick = building?.case_id || newestWaiting?.case_id || cases[0]?.case_id || "";
       if (pick) await loadApiCase(pick);
       else {
         setCaseId("");
@@ -427,10 +440,15 @@ export default function ApprovalView({ showToast }) {
     }
     const left =
       usage?.capped && usage.remaining != null ? ` ${usage.remaining} of ${usage.max_per_day} paid runs left today.` : "";
-    const confirmed = window.confirm(
-      `Start a weekly run for unit ${unit}, week of ${week}? This runs the live agents, costs about $0.50–$1.50, and can take a few minutes.${left}`
-    );
-    if (!confirmed) return;
+    setConfirm({
+      title: "Start a weekly run?",
+      message: `Unit ${unit}, week of ${week}. This runs the live agents, costs about $0.50–$1.50, and can take a few minutes.${left}`,
+      confirmLabel: "Start run",
+      run: () => doStartWeeklyRun(unit, week),
+    });
+  };
+
+  const doStartWeeklyRun = async (unit, week) => {
     setBusy(true);
     setRunStatus(null);
     try {
@@ -612,10 +630,15 @@ export default function ApprovalView({ showToast }) {
     }
     const left =
       usage?.capped && usage.remaining != null ? ` ${usage.remaining} paid operation(s) left today.` : "";
-    const ok = window.confirm(
-      `Report a call-out for ${who(nurseId)} on ${date} ${shift}? This reruns the live Scheduler, costs about $0.15–$1.20, and takes a few minutes. This case becomes out of date.${left}`
-    );
-    if (!ok) return;
+    setConfirm({
+      title: "Report this call-out?",
+      message: `${who(nurseId)} on ${date} ${shift}. This reruns the live Scheduler, costs about $0.15–$1.20, and takes a few minutes. This case becomes out of date.${left}`,
+      confirmLabel: "Send call-out",
+      run: () => doCallOut(nurseId, date, shift),
+    });
+  };
+
+  const doCallOut = async (nurseId, date, shift) => {
     setBusy(true);
     try {
       const { child } = await reportCallOut(record.case_id, [{ nurse_id: nurseId, date, shift }]);
@@ -641,9 +664,33 @@ export default function ApprovalView({ showToast }) {
   const noRunsLeft = Boolean(usage?.capped && usage.remaining === 0);
   const callOutDisabled =
     busy || source !== "api" || !liveAgents || noRunsLeft || !record || !draft || !canChangeDemand(record);
+  const whyNoActions = !record
+    ? ""
+    : record.status === "out_of_date"
+      ? "This case is out of date, so every action is off. Open the newer case to act."
+      : record.status === "approved"
+        ? "This case is already approved. Nothing more to decide."
+        : record.status === "rejected"
+          ? "This case was rejected. Nothing more to decide."
+          : record.status === "building"
+            ? "This case is still being built. Actions turn on when it is ready."
+            : "";
 
   return (
     <div className="panel approval-panel">
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            const run = confirm.run;
+            setConfirm(null);
+            run();
+          }}
+        />
+      )}
       <div className="panel-head" style={{ flexWrap: "wrap", gap: 12 }}>
         <div>
           <h2>Approve AI draft</h2>
@@ -904,6 +951,8 @@ export default function ApprovalView({ showToast }) {
             )}
           </div>
 
+          <DecisionPanel record={record} names={names} />
+
           <h3 className="section-label">Attention</h3>
           <AttentionList title="Agent notes" empty={!unusual.length}>
             {unusual.map((note, i) => (
@@ -1041,17 +1090,6 @@ export default function ApprovalView({ showToast }) {
             </div>
           )}
 
-          <h3 className="section-label">Notes</h3>
-          {(draft?.notes || []).length === 0 ? (
-            <p className="muted small">No scheduler notes.</p>
-          ) : (
-            <ul className="approval-list">
-              {draft.notes.map((n, i) => (
-                <li key={i}>{n}</li>
-              ))}
-            </ul>
-          )}
-
           <h3 className="section-label">Actions</h3>
           <div className="card form-card">
             {openIssues && canTryApprove(record) && (
@@ -1068,6 +1106,11 @@ export default function ApprovalView({ showToast }) {
             {actionError && (
               <p className="approval-error" role="alert">
                 {actionError}
+              </p>
+            )}
+            {whyNoActions && (
+              <p className="approval-why muted" role="status">
+                {whyNoActions}
               </p>
             )}
             <div className="ticket-actions">
@@ -1093,6 +1136,13 @@ export default function ApprovalView({ showToast }) {
                 className="ghost-btn"
                 disabled={demandDisabled}
                 onClick={() => setDemandOpen(true)}
+                title={
+                  demandDisabled
+                    ? whyNoActions || "Not available right now"
+                    : liveAgents
+                      ? "Change a staffing number and build a new draft (costs about $0.30–$1.20)"
+                      : "Needs the API with live agents (NURSESYNC_LIVE=1)"
+                }
               >
                 Change demand
               </button>
@@ -1112,7 +1162,13 @@ export default function ApprovalView({ showToast }) {
               >
                 Report call-out
               </button>
-              <button type="button" className="ghost-btn" disabled={rejectDisabled} onClick={onReject}>
+              <button
+                type="button"
+                className="ghost-btn"
+                disabled={rejectDisabled}
+                onClick={onReject}
+                title={rejectDisabled ? whyNoActions || "Not available right now" : "Reject this draft"}
+              >
                 <XCircle size={14} /> Reject
               </button>
             </div>

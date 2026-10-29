@@ -25,7 +25,7 @@ were accepted on 2026-10-28.
 ```bash
 npm install && npm run dev                     # the app at http://localhost:5173 (log in as "Acting Supervisor")
 npm run build                                  # must pass before finishing any task
-cd backend && ../.venv/bin/python -m pytest -q # 397 tests, no API calls, no cost
+cd backend && ../.venv/bin/python -m pytest -q # 400 tests, no API calls, no cost
 cd backend && ../.venv/bin/python -m app.serve --seed-samples   # case API at http://127.0.0.1:8000 (docs at /docs)
 cd backend && ../.venv/bin/python -m app.check_connection       # one tiny live call; never prints the key
 cd backend && ../.venv/bin/python -m app.run_eval case_10 --runs 3   # live evals cost money (see below)

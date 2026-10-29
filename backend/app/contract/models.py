@@ -71,6 +71,7 @@ ShiftKind = Literal["day", "night"]
 RowStatus = Literal["ok", "needs_review", "missing"]
 AvailabilityReason = Literal["none", "approved_time_off", "call_out"]
 RuleName = Literal[
+    "one_shift_per_day",
     "rest_time",
     "weekly_hours",
     "consecutive_shifts",
