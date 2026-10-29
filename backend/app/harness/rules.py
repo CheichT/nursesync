@@ -93,9 +93,23 @@ def check_rules(
     for rows in by_nurse.values():
         rows.sort(key=lambda a: (_span(a)[0], _SHIFT_ORDER[a.shift]))
 
+    # --- one shift per day -------------------------------------------------------
+    # A nurse may work one shift a day, day or night. Reported once, at the second shift of that day.
+    for nid, rows in by_nurse.items():
+        seen: Dict[str, int] = defaultdict(int)
+        for a in rows:
+            seen[a.date] += 1
+            if seen[a.date] == 2:
+                violations.append(Violation(
+                    rule="one_shift_per_day", severity="hard", nurse_id=nid, date=a.date, shift=a.shift,
+                    found="2 or more shifts on this day", limit="1 shift per day",
+                ))
+
     # --- rest time ---------------------------------------------------------------
     for nid, rows in by_nurse.items():
         for prev, cur in zip(rows, rows[1:]):
+            if prev.date == cur.date:  # two shifts on one day are reported by one_shift_per_day
+                continue
             gap = (_span(cur)[0] - _span(prev)[1]).total_seconds() / 3600
             if gap < rules.min_rest_hours:
                 found = "overlapping shifts" if gap < 0 else f"{_num(gap)} hours of rest"

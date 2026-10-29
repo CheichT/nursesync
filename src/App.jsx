@@ -7,6 +7,7 @@ import ApprovalView from "./ApprovalView";
 import AppearanceMenu from "./AppearanceMenu";
 import NurseHome from "./NurseHome";
 import ManagerHome from "./ManagerHome";
+import NurseMonth from "./NurseMonth";
 import { DEFAULT_PALETTE, isPalette, paletteCss } from "./themes";
 
 const STORAGE_KEY = "scheduler-data";
@@ -372,7 +373,7 @@ const ADMIN_GROUPS = [
   { key: "home", label: "Home", icon: <Home size={15} />, leaves: [{ key: "home", label: "Home" }] },
   {
     key: "schedule", label: "Schedule", icon: <Calendar size={15} />,
-    leaves: [{ key: "builder", label: "Build" }, { key: "daily", label: "Daily breakdown" }, { key: "approve", label: "AI draft" }],
+    leaves: [{ key: "builder", label: "Build Schedule" }, { key: "daily", label: "Daily breakdown" }, { key: "approve", label: "AI draft" }],
   },
   { key: "requests", label: "Requests", icon: <Inbox size={15} />, leaves: [{ key: "swapapprovals", label: "Swaps" }, { key: "leaveapprovals", label: "Leave" }] },
   { key: "team", label: "Team", icon: <User size={15} />, leaves: [{ key: "team", label: "Availability" }] },
@@ -997,11 +998,17 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
   const [employeeId, setEmployeeId] = useState(employees[0]?.id || "");
   const [date, setDate] = useState(today());
   const [kind, setKind] = useState("day");
+  const [monthFor, setMonthFor] = useState(null); // the nurse whose month overview is open
   const { start, end } = SHIFT_OPTIONS.find((o) => o.key === kind);
 
   const addShift = async () => {
     if (!employeeId) { showToast("Add an employee first."); return; }
     const emp = data.roster.find((u) => u.id === employeeId);
+    const already = data.shifts.find((s) => s.employeeId === employeeId && s.date === date && !s.open);
+    if (already) {
+      showToast(`${emp.name} already has a shift on ${fmtDate(date)}. One shift per nurse per day.`);
+      return;
+    }
     const avail = data.availability[employeeId]?.[date];
     const leaveOn = approvedLeaveOn(data, employeeId, date);
     const conflict = avail?.status === "unavailable" || Boolean(leaveOn);
@@ -1027,7 +1034,7 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
 
   return (
     <div className="panel">
-      <h2>Build the schedule</h2>
+      <h2>Build Schedule</h2>
       <div className="card form-card">
         <div className="form-row">
           <label>Employee
@@ -1054,6 +1061,17 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
         </fieldset>
         <button className="primary-btn" onClick={addShift}><Plus size={15} /> Add shift</button>
       </div>
+
+      <h3 className="section-label">Nurses</h3>
+      <p className="muted small">Tap a nurse to see their whole month.</p>
+      <div className="nurse-chips">
+        {employees.map((e) => (
+          <button key={e.id} type="button" className="nurse-chip" onClick={() => setMonthFor(e)} aria-label={`${e.name}, view month overview`}>
+            <User size={13} /> {e.name}
+          </button>
+        ))}
+      </div>
+      {monthFor && <NurseMonth nurse={monthFor} data={data} onClose={() => setMonthFor(null)} onPick={setEmployeeId} />}
 
       <h3 className="section-label">All shifts</h3>
       {sorted.length === 0 && <p className="muted">No shifts scheduled yet.</p>}
@@ -1372,6 +1390,24 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .approval-ack { display:flex; align-items:flex-start; gap: 8px; font-size: 0.88rem; font-weight: 500; }
 .approval-ack input { width: auto; margin-top: 3px; }
 .approval-error { color: var(--brick); font-size: 0.88rem; margin: 0; }
+.approval-why { font-size: 0.88rem; margin: 0 0 10px; }
+.decision-steps { margin: 12px 0 0; padding-left: 1.3rem; display:flex; flex-direction:column; gap: 12px; font-size: 0.92rem; }
+.decision-steps .approval-list { margin-top: 6px; }
+.nurse-chips { display:flex; flex-wrap:wrap; gap: 8px; margin-bottom: 8px; }
+.nurse-chip { display:inline-flex; align-items:center; gap:6px; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper-raised); color: var(--ink); font-family:'IBM Plex Sans'; font-size: 0.9rem; cursor:pointer; }
+.nurse-chip:hover { border-color: var(--primary); background: var(--primary-bg); }
+.nurse-month { max-width: 460px; }
+.nm-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.nm-dow { margin-bottom: 4px; }
+.nm-cell { min-height: 54px; border: 1px solid var(--line); border-radius: 8px; padding: 3px; display:flex; flex-direction:column; gap: 2px; font-size: 0.7rem; background: var(--paper); }
+.nm-cell.empty { border: none; background: transparent; }
+.nm-cell.work { background: var(--primary-bg); border-color: var(--primary); }
+.nm-cell.clash { border-color: var(--brick); border-width: 2px; }
+.nm-day { font-weight: 600; font-size: 0.75rem; color: var(--ink); }
+.nm-tag { font-size: 0.62rem; font-weight: 600; color: var(--primary); line-height: 1.1; }
+.nm-tag.off { color: var(--muted); }
+.nm-tag.bad { color: var(--brick); }
+@media (max-width: 640px) { .nm-cell { min-height: 48px; } .nm-tag { font-size: 0.58rem; } }
 .approval-modal { max-width: 440px; }
 .approval-block { margin-bottom: 10px; }
 .approval-run { margin-bottom: 14px; display:flex; flex-direction:column; gap: 8px; }

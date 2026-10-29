@@ -88,9 +88,9 @@ the date and shift time, "N nurses working · M needed", the open-gap note when 
 with **name and nurse id** (names come from `GET /api/roster`; if it fails the id still shows). Esc, Close or a click
 outside closes it and focus returns to the cell. Read-only: nothing in the popup changes the case.
 
-#### 3. Reasoning notes
+#### 3. How the agents decided
 
-- `final_draft.notes` as a short list (manager-facing, not for `check_rules`)
+A read-only block above Attention (`src/DecisionPanel.jsx`). It shows a recommendation ("Ready for your review" or "Look at these first: ..."), then one step per agent: Demand (shifts sized, warnings), Availability (who can and cannot work, and why), Scheduler (its own `final_draft.notes`, with nurse ids shown as names) and the rules check (rounds and hard problems per round, labeled plain code, not AI). It only reads what is already on the case record; code still decides pass or fail.
 
 #### Actions (draft screen)
 
@@ -99,6 +99,8 @@ outside closes it and focus returns to the cell. Read-only: nothing in the popup
 | **Approve** | Allowed only when `status` is `waiting_approval` and `final_draft` is set. Open issues need an explicit acknowledgement (`decision_details.acknowledged_open_issues`). |
 | **Change demand** | Edits `nurses_needed`; system retires this case (`out_of_date`) and opens a child. UI then follows `newer_case_id`. |
 | **Reject** | Case becomes `rejected`. Manager builds the week by hand. |
+
+Paid actions (Start weekly run, Report call-out) ask for confirmation in an in-app dialog (`src/ConfirmDialog.jsx`), not `window.confirm`, which some browsers block. On load the view opens the newest case that is waiting for a decision and has a draft, so the action buttons are usable at once. When a case is out of date, approved, rejected or still building, a line above the buttons says why they are off.
 
 Disable **Approve** when `status` is `out_of_date`, when there is no draft, or when open issues are not acknowledged. Point to `newer_case_id` when present.
 

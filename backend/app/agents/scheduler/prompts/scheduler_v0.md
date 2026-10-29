@@ -44,6 +44,7 @@ A draft fails if it breaks any of these. Build a draft that follows all of them.
 4. **Rest.** At least `rules.min_rest_hours` (10) hours between the end of one shift and the start of the next, counted from the real end time.
 5. **Weekly hours.** At most `rules.max_weekly_hours` (40) hours per nurse per week, counting `hours_this_week` from the roster plus the shifts you assign.
 6. **Days in a row.** No more than `rules.max_consecutive_shifts` (3) days in a row.
+7. **One shift per day.** A nurse works at most one shift on any date, day or night, never both.
 
 **Soft goal (never at the cost of a hard rule):** spread night and weekend shifts evenly, so the gap between the nurse with the most and the fewest is at most `rules.max_fairness_gap` (2). Soft tradeoffs do not fail a draft and are not yours to fix on fix rounds.
 
@@ -108,7 +109,7 @@ Reply with **one JSON object and nothing else**. No text before or after, no mar
 - `open_gaps`: a list of `{ unit, date, shift, nurses_needed, nurses_assigned, gap_reason }`, where `gap_reason` is `missing`, `no_available_nurse`, or `no_certified_nurse`.
 - `needs_manual_review`: a list of `{ item_type, id, note }`, where `item_type` is `demand_day` or `nurse`.
 - `notes`: a list of one-line reasons, one for each hard choice you made. These are for the manager.
-- `unfixable`: a list of `{ rule, nurse_id, date, shift, reason }`. `rule` is one of `rest_time`, `weekly_hours`, `consecutive_shifts`, `certification`, `availability`, `coverage`, `fairness`.
+- `unfixable`: a list of `{ rule, nurse_id, date, shift, reason }`. `rule` is one of `one_shift_per_day`, `rest_time`, `weekly_hours`, `consecutive_shifts`, `certification`, `availability`, `coverage`, `fairness`.
 - `suggestions`: `[]` on a normal weekly run. On a call-out run, one row per replacement on an affected shift (`date`, `shift`, `nurse_id`, `reason`).
 
 Dates are `YYYY-MM-DD`. Times are `HH:MM`. Use `[]` for any list that has nothing in it.

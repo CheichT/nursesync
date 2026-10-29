@@ -131,15 +131,30 @@ def test_two_night_shifts_in_a_row_have_enough_rest(staff):
     assert run([asg(1, MON, "night"), asg(1, TUE, "night")], [], staff).passed
 
 
-def test_day_then_night_on_the_same_date_fails_rest_time(staff):
+def test_day_then_night_on_the_same_date_fails_one_shift_per_day(staff):
     result = run([asg(1, MON, "day"), asg(1, MON, "night")], [], staff)
-    assert rules_found(result) == ["rest_time"]
+    assert rules_found(result) == ["one_shift_per_day"]  # not also rest_time: the same fault is reported once
+    v = result.violations[0]
+    assert (v.nurse_id, v.date, v.shift, v.limit) == ("N001", MON, "night", "1 shift per day")
 
 
-def test_overlapping_shifts_are_reported(staff):
-    # the same shift listed twice overlaps itself
+def test_the_same_shift_listed_twice_fails_one_shift_per_day(staff):
     result = run([asg(1, MON, "day"), asg(1, MON, "day")], [], staff)
-    assert result.violations[0].found == "overlapping shifts"
+    assert rules_found(result) == ["one_shift_per_day"]
+
+
+def test_one_shift_per_day_is_reported_once_per_nurse_and_day(staff):
+    result = run([asg(1, MON, "day"), asg(1, MON, "night"), asg(1, MON, "night")], [], staff)
+    assert rules_found(result).count("one_shift_per_day") == 1
+
+
+def test_different_nurses_on_the_same_day_are_fine(staff):
+    assert run([asg(1, MON, "day"), asg(2, MON, "night")], [], staff).passed
+
+
+def test_night_then_day_on_the_next_date_still_fails_rest_time(staff):
+    result = run([asg(1, MON, "night"), asg(1, TUE, "day")], [], staff)
+    assert rules_found(result) == ["rest_time"]
 
 
 # --- weekly hours ------------------------------------------------------------------

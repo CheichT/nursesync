@@ -34,6 +34,7 @@ Examples of hints:
 | Violation | Good `fix_hint` |
 | --- | --- |
 | `rest_time`, N003, 2026-11-03 day, found "0 hours of rest" | `Remove N003 from the 2026-11-03 day shift, or move the 2026-11-02 night shift to another nurse.` |
+| `one_shift_per_day`, N005, 2026-11-04 night, found "2 or more shifts on this day" | `Keep N005 on one shift on 2026-11-04 and move the night shift to another available nurse.` |
 | `weekly_hours`, N004, found "48 hours this week" | `Take N004 off one shift this week and give it to a nurse who still has hours left.` |
 | `consecutive_shifts`, N004, 2026-11-08 day, found "4 shifts in a row" | `Give N004 a day off by moving the 2026-11-08 day shift to another nurse.` |
 | `certification`, whole shift, 2026-11-05 night | `Add a nurse who holds ACLS to the 2026-11-05 night shift.` |
