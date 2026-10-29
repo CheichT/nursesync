@@ -245,10 +245,10 @@ export default function App() {
     <div className={`scheduler-root pal-${palette} ${isDark ? "dark" : ""}`}>
       <style>{GLOBAL_CSS}</style>
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark">NS</span>
-          <span className="brand-name">NurseSync</span>
-        </div>
+        <button type="button" className="brand brand-btn" onClick={() => setTab("home")} aria-label="NurseSync, go to Home" title="Go to Home">
+          <span className="brand-mark" aria-hidden="true">NS</span>
+          <span className="brand-name" aria-hidden="true">NurseSync</span>
+        </button>
         <div className="topbar-right">
           <AppearanceMenu palette={palette} mode={mode} onPalette={choosePalette} onMode={chooseMode} />
           <span className="who">
@@ -1273,6 +1273,8 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .tight { gap: 4px !important; }
 
 .brand { display:flex; align-items:center; gap:10px; }
+.brand-btn { background: none; border: none; padding: 4px; margin: -4px; border-radius: 8px; color: inherit; cursor: pointer; min-height: 40px; }
+.brand-btn:hover { background: var(--paper); }
 .brand-mark { font-family:'Space Grotesk', sans-serif; font-weight:700; background: var(--primary); color: var(--on-primary); border-radius: 6px; padding: 4px 9px; font-size: 0.85rem; letter-spacing: 0.03em; }
 .brand-mark.big { display: inline-block; margin-bottom: 10px; font-size: 1.4rem; padding: 10px 16px; border-radius: 10px; }
 .brand-name { font-family:'Space Grotesk', sans-serif; font-weight:700; font-size: 1.1rem; }
