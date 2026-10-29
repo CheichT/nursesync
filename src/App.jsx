@@ -10,6 +10,12 @@ import ManagerHome from "./ManagerHome";
 import { DEFAULT_PALETTE, isPalette, paletteCss } from "./themes";
 
 const STORAGE_KEY = "scheduler-data";
+// The two shifts the unit runs (same hours as the AI schedule). Builders pick one; they do not type times.
+const SHIFT_OPTIONS = [
+  { key: "day", label: "Day", start: "07:00", end: "19:00" },
+  { key: "night", label: "Night", start: "19:00", end: "07:00" },
+];
+const shiftKindOf = (s) => SHIFT_OPTIONS.find((o) => o.start === s.start && o.end === s.end);
 const REASONS = ["Sick", "Appointment", "Family emergency", "Running late", "Other"];
 const LEAVE_TYPES = [
   { key: "vacation", label: "Vacation" },
@@ -956,8 +962,8 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
   const employees = data.roster.filter((u) => !u.isAdmin);
   const [employeeId, setEmployeeId] = useState(employees[0]?.id || "");
   const [date, setDate] = useState(today());
-  const [start, setStart] = useState("09:00");
-  const [end, setEnd] = useState("17:00");
+  const [kind, setKind] = useState("day");
+  const { start, end } = SHIFT_OPTIONS.find((o) => o.key === kind);
 
   const addShift = async () => {
     if (!employeeId) { showToast("Add an employee first."); return; }
@@ -994,10 +1000,20 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
           </label>
           <label>Date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
         </div>
-        <div className="form-row">
-          <label>Start<input type="time" value={start} onChange={(e) => setStart(e.target.value)} /></label>
-          <label>End<input type="time" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
-        </div>
+        <fieldset className="choice-group">
+          <legend>Shift</legend>
+          <div className="choice-row">
+            {SHIFT_OPTIONS.map((o) => (
+              <label key={o.key} className={`choice choice-shift ${kind === o.key ? "on" : ""}`}>
+                <input type="radio" name="shift-kind" value={o.key} checked={kind === o.key} onChange={() => setKind(o.key)} />
+                <span>
+                  <strong>{o.label}</strong>
+                  <span className="choice-times">{o.start}–{o.end}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <button className="primary-btn" onClick={addShift}><Plus size={15} /> Add shift</button>
       </div>
 
@@ -1008,7 +1024,7 @@ function ScheduleBuilder({ data, persist, notify, showToast }) {
           <div className="row-card ticket" key={s.id}>
             <div>
               <strong>{nameOf(s.employeeId)}</strong>
-              <div className="muted small">{fmtDate(s.date)} · {s.start}–{s.end}</div>
+              <div className="muted small">{fmtDate(s.date)} · {shiftKindOf(s) ? `${shiftKindOf(s).label} ` : ""}{s.start}–{s.end}</div>
             </div>
             <div className="ticket-actions">
               <StatusPill status={s.status} />
@@ -1239,6 +1255,8 @@ ${paletteCss()}
 .choice.on { border-color: var(--primary); background: var(--primary-bg); }
 .choice:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
 .choice-mark { font-weight: 700; }
+.choice-shift > span { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+.choice-times { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
 .choice-mark.ok { color: var(--teal); }
 .choice-mark.no { color: var(--brick); }
 .cal-mark { font-size: 0.72rem; font-weight: 700; line-height: 1; }
