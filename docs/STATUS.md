@@ -62,6 +62,7 @@ code overrides an agent). Every POST to the API needs `Content-Type: application
 | API | `backend/app/api.py`, `serve.py`, docs in `docs/api-v0.md` |
 | Evals | `backend/app/run_eval.py`, `harness/eval_scoring.py`, cards in `backend/evals/phase1/` |
 | Test data | `backend/data/mock/`, `backend/data/scenarios/`, `docs/sample-cases/` |
+| App look and homes | `src/themes.js` (6 palettes; `scripts/check-palettes.mjs` runs in the build), `src/AppearanceMenu.jsx`, `src/NurseHome.jsx`, `src/ManagerHome.jsx` |
 
 ## Cost (live agents, rough estimates)
 
