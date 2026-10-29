@@ -494,10 +494,13 @@ def test_text_is_cut_but_the_meaning_of_the_words_stays_readable(mock_inputs, re
 
 from app.contract.models import ShiftTimes  # noqa: E402
 
+NO_CERT = RULES.model_copy(update={"required_certifications_per_shift": []})  # these tests are about shift times, not ACLS
+
 
 def test_the_exact_defined_times_pass():
     nurses = [nurse(1)]
-    assert check_rules(draft([asg(1, MON, "day"), asg(1, TUE, "night")]), [], avail(nurses), nurses, RULES).violations == []
+    rows = [demand(MON, "day", 1), demand(TUE, "night", 1)]
+    assert check_rules(draft([asg(1, MON, "day"), asg(1, TUE, "night")]), rows, avail(nurses), nurses, NO_CERT).violations == []
 
 
 @pytest.mark.parametrize("shift,start,end", [
@@ -517,7 +520,7 @@ def test_any_times_that_differ_from_the_definition_reject_the_draft(shift, start
 def test_sloppy_but_equal_times_are_fine_after_auto_adjusting():
     nurses = [nurse(1)]
     day = Assignment(unit="7W", date=MON, shift="day", nurse_id="N001", shift_start="7am", shift_end="7:00 PM")
-    assert check_rules(draft([day]), [], avail(nurses), nurses, RULES).violations == []
+    assert check_rules(draft([day]), [demand(MON, "day", 1)], avail(nurses), nurses, NO_CERT).violations == []
 
 
 def test_the_rejection_names_the_assignment_and_the_correct_times():
@@ -534,7 +537,7 @@ def test_a_custom_shift_definition_is_respected():
                                                       "night": ShiftTimes(start="18:00", end="06:00")}})
     nurses = [nurse(1)]
     ok = Assignment(unit="7W", date=MON, shift="day", nurse_id="N001", shift_start="06:00", shift_end="18:00")
-    assert check_rules(draft([ok]), [], avail(nurses), nurses, custom).violations == []
+    assert check_rules(draft([ok]), [demand(MON, "day", 1)], avail(nurses), nurses, custom.model_copy(update={"required_certifications_per_shift": []})).violations == []
     with pytest.raises(DraftRejected):  # the old 07:00-19:00 times no longer match
         check_rules(draft([asg(1, MON, "day")]), [], avail(nurses), nurses, custom)
 

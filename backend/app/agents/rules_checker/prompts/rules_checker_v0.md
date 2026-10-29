@@ -39,6 +39,7 @@ Examples of hints:
 | `consecutive_shifts`, N004, 2026-11-08 day, found "4 shifts in a row" | `Give N004 a day off by moving the 2026-11-08 day shift to another nurse.` |
 | `certification`, whole shift, 2026-11-05 night | `Add a nurse who holds ACLS to the 2026-11-05 night shift.` |
 | `availability`, N012, 2026-11-04 day | `Replace N012 on the 2026-11-04 day shift with a nurse who is available.` |
+| `coverage`, whole shift, found "1 nurse", limit "0 nurses (no demand number for this shift)" | `Take the nurse off the 2026-11-05 night shift. It has no demand number, so leave it open and list it as a gap.` |
 | `coverage`, whole shift, found "3 nurses", limit "4 nurses" | `Add one more available nurse to the 2026-11-05 night shift.` |
 
 ## Your output

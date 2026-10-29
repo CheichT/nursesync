@@ -70,6 +70,12 @@ def draft(assignments, version=1, **extra):
 
 
 def run(assignments, demand_rows, nurses, availability=None, rules=RULES, **kw):
+    if demand_rows == []:  # these tests are about another rule: size every shift they use to exactly its crew
+        counts = {}
+        for a in assignments:
+            counts[(a.date, a.shift)] = counts.get((a.date, a.shift), 0) + 1
+        demand_rows = [demand(d, sh, n) for (d, sh), n in counts.items()]
+        rules = rules.model_copy(update={"required_certifications_per_shift": []})
     return check_rules(draft(assignments, **kw), demand_rows, availability if availability is not None else available(nurses), nurses, rules)
 
 
@@ -155,6 +161,23 @@ def test_different_nurses_on_the_same_day_are_fine(staff):
 def test_night_then_day_on_the_next_date_still_fails_rest_time(staff):
     result = run([asg(1, MON, "night"), asg(1, TUE, "day")], [], staff)
     assert rules_found(result) == ["rest_time"]
+
+
+def test_a_nurse_on_a_shift_with_no_demand_row_fails_coverage(staff):
+    result = run([asg(1, MON, "day"), asg(2, TUE, "night")], [demand(MON, "day", 1)], staff)
+    assert rules_found(result) == ["coverage"]
+    v = result.violations[0]
+    assert (v.date, v.shift, v.found, v.limit) == (TUE, "night", "1 nurse", "0 nurses (no demand number for this shift)")
+
+
+def test_a_nurse_on_a_shift_whose_demand_number_is_missing_fails_coverage(staff):
+    missing = DemandRow(unit="7W", date=MON, shift="day", patient_count=None, nurses_needed=None, status="missing", note="get_demand error")
+    result = run([asg(1, MON, "day")], [missing], staff)
+    assert rules_found(result) == ["coverage"]
+
+
+def test_an_empty_shift_with_no_demand_is_fine(staff):
+    assert run([], [], staff).passed
 
 
 # --- weekly hours ------------------------------------------------------------------
@@ -340,7 +363,7 @@ def test_every_problem_is_reported_and_sorted_coverage_and_availability_first(st
     off = {("N002", TUE, "day"): "approved_time_off"}
     drafted = [asg(1, MON, "night"), asg(1, TUE, "day"),  # rest_time for N001
                asg(2, TUE, "day")]                         # availability for N002
-    result = run(drafted, [demand(TUE, "day", 3)], staff, availability=available(staff, off))
+    result = run(drafted, [demand(MON, "night", 1), demand(TUE, "day", 3)], staff, availability=available(staff, off))
     assert rules_found(result) == ["availability", "coverage", "rest_time"]
     assert [v.rule for v in result.violations][:2] == ["coverage", "availability"]
 
