@@ -76,7 +76,7 @@ npm run dev                  # the app, at http://localhost:5173 (pick "Acting S
 npm run build                # also checks every palette's contrast
 ```
 
-On the sign-in screen, **Load sample schedule** fills the app with 24 sample nurses and a full week of shifts, so there is something to look at right away.
+On the sign-in screen, **Load sample schedule** fills the app with 24 sample nurses and five weeks of shifts (Nov 2 to Dec 6, 2026), so there is something to look at right away.
 
 The AI side is optional. The app opens without it and shows sample cases.
 

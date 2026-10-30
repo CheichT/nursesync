@@ -426,7 +426,7 @@ function LoginScreen({ data, persist, newName, setNewName, onSelect }) {
         <button type="button" className="ghost-btn small" onClick={() => setConfirmSample(true)}>
           <Calendar size={13} /> Load sample schedule
         </button>
-        <p className="muted small">24 sample nurses and a full week of shifts ({SAMPLE_WEEK}).</p>
+        <p className="muted small">24 sample nurses and five weeks of shifts ({SAMPLE_WEEK}).</p>
       </div>
       {confirmSample && (
         <ConfirmDialog
