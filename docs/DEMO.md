@@ -6,7 +6,8 @@ For the live demo and the Loom recording. Mock data only. There is no login and 
 
 - [ ] Terminal 1: `cd backend && NURSESYNC_LIVE=1 ../.venv/bin/python -m app.serve --seed-samples` (live agents on). Check `http://127.0.0.1:8000/api/health` says `live_agents: true`.
 - [ ] Terminal 2: `npm run dev`, then open `http://localhost:5173` in Chrome.
-- [ ] Clean demo data: open the Console (Cmd+Option+J), paste the snippet at the bottom, press Enter, reload.
+- [ ] Fuller demo data (optional): on the sign-in screen click **Load sample schedule** for 24 nurses and a full week (Nov 2 to 8). It replaces what is saved in that browser; **Clear names** resets it.
+- [ ] Clean demo data for the short script below: open the Console (Cmd+Option+J), paste the snippet at the bottom, press Enter, reload.
 - [ ] Open the AI draft once so the ready case `run-7W-2026-11-02-134649-8c28` is selected.
 - [ ] Paid runs left today: check "N of 4 paid runs left" on the AI draft screen. A live run needs 1.
 - [ ] Close every other tab and app. Turn on Do Not Disturb. Hide bookmarks. Never show `.env` or the API key.

@@ -8,6 +8,8 @@ import AppearanceMenu from "./AppearanceMenu";
 import NurseHome from "./NurseHome";
 import ManagerHome from "./ManagerHome";
 import NurseMonth from "./NurseMonth";
+import ConfirmDialog from "./ConfirmDialog";
+import { sampleData, SAMPLE_WEEK } from "./sampleSchedule";
 import { DEFAULT_PALETTE, isPalette, paletteCss } from "./themes";
 
 const STORAGE_KEY = "scheduler-data";
@@ -384,6 +386,7 @@ const ADMIN_GROUPS = [
 ];
 
 function LoginScreen({ data, persist, newName, setNewName, onSelect }) {
+  const [confirmSample, setConfirmSample] = useState(false);
   const addEmployee = async () => {
     const name = newName.trim();
     if (!name) return;
@@ -419,6 +422,21 @@ function LoginScreen({ data, persist, newName, setNewName, onSelect }) {
           <Plus size={15} /> Join
         </button>
       </div>
+      <div className="login-sample">
+        <button type="button" className="ghost-btn small" onClick={() => setConfirmSample(true)}>
+          <Calendar size={13} /> Load sample schedule
+        </button>
+        <p className="muted small">24 sample nurses and a full week of shifts ({SAMPLE_WEEK}).</p>
+      </div>
+      {confirmSample && (
+        <ConfirmDialog
+          title="Load the sample schedule?"
+          message="This replaces the names, shifts and requests saved in this browser with a sample week. Clear names resets it again."
+          confirmLabel="Load sample"
+          onCancel={() => setConfirmSample(false)}
+          onConfirm={async () => { setConfirmSample(false); await persist(sampleData()); }}
+        />
+      )}
     </div>
   );
 }
@@ -1490,7 +1508,9 @@ input:focus, select:focus { outline: 2px solid var(--indigo); outline-offset: 1p
 .stamp { font-family:'IBM Plex Mono', monospace; font-size: 0.68rem; font-weight:600; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 9px; border-radius: 4px; display:inline-block; transform: rotate(-1.5deg); border: 1px solid currentColor; }
 
 .login-card { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 16px; padding: 32px; width: 100%; max-width: 380px; text-align:center; }
-.roster-list { display:flex; flex-direction:column; gap:8px; margin: 20px 0; text-align:left; }
+.roster-list { display:flex; flex-direction:column; gap:8px; margin: 20px 0; text-align:left; max-height: 46vh; overflow-y: auto; }
+.login-sample { margin-top: 16px; display:flex; flex-direction:column; align-items:center; gap: 6px; }
+.login-sample p { margin: 0; }
 .roster-item { display:flex; justify-content:space-between; align-items:center; padding: 10px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor:pointer; font-weight:500; }
 .roster-item:hover { border-color: var(--indigo); }
 .add-row { display:flex; gap:8px; }
