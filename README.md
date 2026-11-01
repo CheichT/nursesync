@@ -46,10 +46,13 @@ Nurse managers spend hours every week building schedules by hand. Staffing needs
 
 ![NurseSync multi-agent workflow](nursesync_multi_agent_architecture.png)
 
-1. **Demand** works out how many nurses each shift needs. **Availability** collects who can work and who has approved time off. They run at the same time.
-2. **Code stamps every row** `ok`, `needs_review` or `missing`. Agents never write that status. A missing required row stops the run before the Scheduler, so nothing is guessed.
-3. The **Scheduler** drafts the week. `check_rules` judges it, and the **Rules Checker** only adds plain-language fix hints. They loop up to three rounds.
-4. The **manager** reviews the draft and the notes that need a human look, then approves.
+**One run, one baton.** At the start, the orchestrator freezes a **snapshot** (roster, demand, availability, rules) with a `snapshot_id`. Every agent and `check_rules` read that same copy—nothing mid-run can rewrite the inputs under them.
+
+**Demand** works out how many nurses each shift needs. **Availability** collects who can work and who has approved time off. They run in parallel and return rows. **Code** (not the agents) stamps each row `ok`, `needs_review`, or `missing`. Any required `missing` stops the run before a schedule is drafted.
+
+Otherwise the **Scheduler** builds a draft from those stamped rows. Plain-code **`check_rules`** passes or fails it; the **Rules Checker** only adds plain-language fix hints. They loop up to three rounds, still on the same snapshot.
+
+The case record—draft, gaps, notes, and open issues—goes to the **manager**, who alone approves, rejects, or changes demand. Nothing is final until that person says yes.
 
 ## Decisions worth reading
 
@@ -97,11 +100,13 @@ Put the key only in the repo-root `.env` (see `.env.example`). Never prefix it w
 | `docs/` | [Status and handoff](docs/STATUS.md), [API](docs/api-v0.md), [approval view](docs/approval-view-v0.md), sample cases |
 | [PRD (PDF)](NurseSync%20PRD%20-%20Cheich%20Toure%20and%20Kerrian%20Gordon.pdf) | The problem, users, solution, tools, system prompt, risks and eval cases |
 
-## Limits, stated plainly
+## Out of scope (for now)
 
 - **No login.** It is pick-a-name, and it is **not secure**. Nothing here should be called secure yet.
 - **Per-device data.** The app's own roster, shifts and requests live in the browser, so they aren't shared between people.
-- **Mock data and one unit.** One 7W week of synthetic nurses. Nothing is sent to nurses.
+- **Mock data and one unit.** One 7W week of synthetic nurses.
+- **Nothing is posted to nurses.** Approve saves the case decision; it does not notify staff or push the draft into their phones.
+- **Browser leave is not on the AI path yet.** Day-off and leave requests in the app stay in local storage until a real Shift Board source feeds Availability.
 - **Shift swaps are a one-way handoff.** A two-way trade is not built.
 
 What's next is tracked in [docs/STATUS.md](docs/STATUS.md): a real Shift Board source, a login, and wiring call-outs into the weekly run.
