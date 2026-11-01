@@ -120,12 +120,12 @@ export default function ManagerHome({ data, goTo, unreadAlerts }) {
 
       <h3 className="section-label">Quick actions</h3>
       <div className="home-actions">
-        <button type="button" className="home-action" onClick={() => goTo("approve")}>
+        <button type="button" className="home-action" onClick={() => goTo("approve", "weekly-run")}>
           <Sparkles size={20} aria-hidden="true" />
           <span>Build next week with AI</span>
           <ChevronRight size={16} aria-hidden="true" />
         </button>
-        <button type="button" className="home-action" onClick={() => goTo("approve")}>
+        <button type="button" className="home-action" onClick={() => goTo("approve", "call-out")}>
           <PhoneOff size={20} aria-hidden="true" />
           <span>Report a call-out</span>
           <ChevronRight size={16} aria-hidden="true" />

@@ -85,12 +85,18 @@ Use text labels, not color alone (e.g. “Hard — rest time”, “Soft — fai
 
 Each cell of the grid is a button. Clicking (or Enter on) a cell opens a popup for that date and shift: a heading with
 the date and shift time, "N nurses working · M needed", the open-gap note when the shift is short, and each nurse
-with **name and nurse id** (names come from `GET /api/roster`; if it fails the id still shows). Esc, Close or a click
+with **name and nurse id** (names come from `GET /api/roster`; if it fails the id still shows). Tap a nurse to open
+their month on this draft (`DraftNurseMonth`: assignments + availability from the case). Esc, Close or a click
 outside closes it and focus returns to the cell. Read-only: nothing in the popup changes the case.
+
+Manager Home quick actions deep-link here: **Build next week with AI** scrolls to Start weekly run; **Report a
+call-out** scrolls to Actions and opens the call-out form when the loaded case allows it.
 
 #### 3. How the agents decided
 
 A read-only block above Attention (`src/DecisionPanel.jsx`). It shows a recommendation ("Ready for your review" or "Look at these first: ..."), then one step per agent: Demand (shifts sized, warnings), Availability (who can and cannot work, and why), Scheduler (its own `final_draft.notes`, with nurse ids shown as names) and the rules check (rounds and hard problems per round, labeled plain code, not AI). It only reads what is already on the case record; code still decides pass or fail.
+
+Right above the week grid, **Why it looks like this** skims up to three Scheduler notes (names filled in), call-out suggestions, and soft tradeoffs so a manager does not have to dig for reasoning before reading the schedule. The full note list stays under How the agents decided.
 
 #### Actions (draft screen)
 
@@ -117,7 +123,7 @@ Manager control on the Approve AI draft tab (API connected only).
 
 | Step | Behavior |
 | --- | --- |
-| **Start weekly run** | Show “N of M paid runs left today” from `GET /api/usage`. Disable when remaining is 0. Confirm with the cost and runs left (“about $0.50–$1.50 … N of M paid runs left today”) Then `POST /api/runs` with `{ unit, week_start }` (JSON content type). Defaults for mock data: unit `7W`, week `2026-11-02` (Monday). |
+| **Start weekly run** | Show “N of M paid runs left today” from `GET /api/usage`. Disable when remaining is 0, and show plain copy that the daily limit is used up (try tomorrow, or raise `NURSESYNC_MAX_PAID_OPS_PER_DAY` and restart). Confirm with the cost and runs left (“about $0.50–$1.50 … N of M paid runs left today”) Then `POST /api/runs` with `{ unit, week_start }` (JSON content type). Defaults for mock data: unit `7W`, week `2026-11-02` (Monday). |
 | **Poll** | Every 5 seconds, `GET /api/runs/{run_id}` until `state` is `done` or `failed`. Show “Running…” and a “run in progress” notice. Show the server `message` as-is (plain text). |
 | **Reload mid-run** | On connect, if a case is still `building` and `GET /api/runs/{id}` knows the run, show the in-progress notice, select that case, and resume polling. If there is no such run (a call-out or demand change in flight, or a leftover after a restart), show no notice. |
 | **Errors** | 409 / 422 / 429 / 503: show the server `message` as-is. Do not retry in a loop. |

@@ -133,6 +133,7 @@ export default function App() {
   const [newName, setNewName] = useState("");
   const [tab, setTab] = useState("");
   const [leavePrefill, setLeavePrefill] = useState(""); // a date to prefill in the day-off request form
+  const [approveIntent, setApproveIntent] = useState(""); // "weekly-run" | "call-out" | ""
   const [toast, setToast] = useState("");
   const [mode, setMode] = useState("light"); // "light" | "dark" | "auto"
   const [systemDark, setSystemDark] = useState(false);
@@ -319,7 +320,21 @@ export default function App() {
 
       <main className="content">
         {currentUser.isAdmin ? (
-          <AdminPanels tab={tab} data={data} persist={persist} notify={notify} showToast={showToast} goTo={setTab} unreadAlerts={unread} />
+          <AdminPanels
+            tab={tab}
+            data={data}
+            persist={persist}
+            notify={notify}
+            showToast={showToast}
+            goTo={(next, intent) => {
+              if (next === "approve" && intent) setApproveIntent(intent);
+              else if (next !== "approve") setApproveIntent("");
+              setTab(next);
+            }}
+            approveIntent={approveIntent}
+            clearApproveIntent={() => setApproveIntent("")}
+            unreadAlerts={unread}
+          />
         ) : (
           <EmployeePanels
             tab={tab}
@@ -913,11 +928,19 @@ function NotificationsTab({ data, persist, audience }) {
 }
 
 /* ---------- ADMIN PANELS ---------- */
-function AdminPanels({ tab, data, persist, notify, showToast, goTo, unreadAlerts }) {
+function AdminPanels({ tab, data, persist, notify, showToast, goTo, approveIntent, clearApproveIntent, unreadAlerts }) {
   if (tab === "home") return <ManagerHome data={data} goTo={goTo} unreadAlerts={unreadAlerts} />;
   if (tab === "daily") return <DailyBreakdown data={data} />;
   if (tab === "builder") return <ScheduleBuilder data={data} persist={persist} notify={notify} showToast={showToast} />;
-  if (tab === "approve") return <ApprovalView showToast={showToast} />;
+  if (tab === "approve") {
+    return (
+      <ApprovalView
+        showToast={showToast}
+        intent={approveIntent}
+        onIntentConsumed={clearApproveIntent}
+      />
+    );
+  }
   if (tab === "team") return <TeamAvailability data={data} />;
   if (tab === "swapapprovals") return <SwapApprovals data={data} persist={persist} notify={notify} showToast={showToast} />;
   if (tab === "leaveapprovals") return <LeaveApprovals data={data} persist={persist} notify={notify} showToast={showToast} />;
@@ -1386,7 +1409,10 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .day-detail-sub { margin: 0; }
 .day-detail-count { margin: 0 0 8px; }
 .day-detail-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
-.day-detail-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.day-detail-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); overflow: hidden; }
+.day-detail-list li > span, .day-detail-list li > code { padding: 10px 12px; }
+.day-detail-nurse { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: none; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.day-detail-nurse:hover, .day-detail-nurse:focus-visible { background: var(--primary-bg); outline: none; }
 .day-detail-list code { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; padding: 2px 8px; border-radius: 6px; background: var(--primary-bg); color: var(--primary); }
 .modal-card.day-detail { max-width: 420px; max-height: 85vh; overflow: auto; }
 .approval-grid th { background: var(--paper); font-weight: 600; }
@@ -1396,6 +1422,9 @@ h3.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing
 .approval-ack input { width: auto; margin-top: 3px; }
 .approval-error { color: var(--brick); font-size: 0.88rem; margin: 0; }
 .approval-why { font-size: 0.88rem; margin: 0 0 10px; }
+.approval-why-grid { margin: 0 0 12px; }
+.approval-why-grid .approval-list { margin-top: 8px; }
+.approval-why-grid-empty { margin: 0 0 10px; }
 .decision-steps { margin: 12px 0 0; padding-left: 1.3rem; display:flex; flex-direction:column; gap: 12px; font-size: 0.92rem; }
 .decision-steps .approval-list { margin-top: 6px; }
 .nurse-chips { display:flex; flex-wrap:wrap; gap: 8px; margin-bottom: 8px; }

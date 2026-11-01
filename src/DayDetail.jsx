@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { XCircle } from "lucide-react";
 
 /** Popup for one date and shift of the AI draft: who is working, with name and nurse id. */
-export default function DayDetail({ title, shiftLabel, nurses, needed, gap, onClose }) {
+export default function DayDetail({ title, shiftLabel, nurses, needed, gap, onClose, onNurseClick }) {
   const closeRef = useRef(null);
   const sorted = [...nurses].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
 
@@ -49,11 +49,28 @@ export default function DayDetail({ title, shiftLabel, nurses, needed, gap, onCl
             <ul className="day-detail-list">
               {sorted.map((n) => (
                 <li key={n.id}>
-                  <span>{n.name || "Name not available"}</span>
-                  <code>{n.id}</code>
+                  {onNurseClick ? (
+                    <button
+                      type="button"
+                      className="day-detail-nurse"
+                      onClick={() => onNurseClick(n)}
+                      aria-label={`${n.name || n.id}, view month on this draft`}
+                    >
+                      <span>{n.name || "Name not available"}</span>
+                      <code>{n.id}</code>
+                    </button>
+                  ) : (
+                    <>
+                      <span>{n.name || "Name not available"}</span>
+                      <code>{n.id}</code>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
+          )}
+          {onNurseClick && sorted.length > 0 && (
+            <p className="muted small">Tap a nurse to see their month on this draft.</p>
           )}
           <div className="ticket-actions">
             <button type="button" className="ghost-btn" onClick={onClose}>Close</button>

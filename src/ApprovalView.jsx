@@ -27,6 +27,7 @@ import {
   formatCaseOption,
 } from "./caseApi";
 import DayDetail from "./DayDetail";
+import DraftNurseMonth from "./DraftNurseMonth";
 import ConfirmDialog from "./ConfirmDialog";
 import DecisionPanel from "./DecisionPanel";
 
@@ -178,7 +179,7 @@ function DemandChangeModal({ record, onClose, onSubmit, busy, useApi, liveAgents
   );
 }
 
-export default function ApprovalView({ showToast }) {
+export default function ApprovalView({ showToast, intent = "", onIntentConsumed }) {
   const [source, setSource] = useState("api"); // "api" | "samples"
   const [liveAgents, setLiveAgents] = useState(false);
   const [apiNote, setApiNote] = useState("");
@@ -199,10 +200,13 @@ export default function ApprovalView({ showToast }) {
   const [runError, setRunError] = useState("");
   const [names, setNames] = useState({});
   const [dayDetail, setDayDetail] = useState(null); // { date, shift } of the open popup
+  const [nurseMonth, setNurseMonth] = useState(null); // { id, name } when a draft nurse month is open
   const [callOutOpen, setCallOutOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // { title, message, confirmLabel, run } for the in-app confirm dialog
   const [callOutPick, setCallOutPick] = useState("");
   const runPollRef = useRef(null);
+  const weeklyRunRef = useRef(null);
+  const actionsRef = useRef(null);
 
   const resetDecisionUi = () => {
     setAckOpenIssues(false);
@@ -221,6 +225,9 @@ export default function ApprovalView({ showToast }) {
 
   /** Name with id, for sentences. Falls back to the id when the roster is not loaded. */
   const who = (id) => (names[id] ? `${names[id]} (${id})` : id);
+  /** Swap nurse ids in free text for "Name (id)" so managers can skim. */
+  const withNames = (text) =>
+    String(text).replace(/\bN\d{3}\b/g, (id) => (names[id] ? `${names[id]} (${id})` : id));
 
   const loadNames = async () => {
     try {
@@ -492,6 +499,10 @@ export default function ApprovalView({ showToast }) {
   const soft = record?.soft_tradeoffs || [];
   const hard = record?.open_violations || [];
   const unfixable = record?.unfixable || [];
+  const allSchedulerNotes = (draft?.notes || []).filter((n) => typeof n === "string" && n.trim());
+  const skimNotes = allSchedulerNotes.slice(0, 3);
+  const skimSoft = soft.filter((s) => s?.note || s?.nurse_id).slice(0, 2);
+  const suggestions = (draft?.suggestions || []).filter((s) => s?.reason).slice(0, 2);
 
   const weekDates = useMemo(() => {
     if (!record?.week_start) return [];
@@ -664,6 +675,31 @@ export default function ApprovalView({ showToast }) {
   const noRunsLeft = Boolean(usage?.capped && usage.remaining === 0);
   const callOutDisabled =
     busy || source !== "api" || !liveAgents || noRunsLeft || !record || !draft || !canChangeDemand(record);
+
+  /** Home quick actions: land on weekly run or open the call-out form when the draft allows it. */
+  useEffect(() => {
+    if (!intent || loading) return;
+    if (intent === "weekly-run") {
+      weeklyRunRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      onIntentConsumed?.();
+      return;
+    }
+    if (intent === "call-out") {
+      if (!callOutDisabled) setCallOutOpen(true);
+      else if (!draft) {
+        showToast?.("Open a draft case first, then report the call-out.");
+      } else if (source !== "api" || !liveAgents) {
+        showToast?.("Call-out needs the local API with live agents (NURSESYNC_LIVE=1).");
+      } else if (noRunsLeft) {
+        showToast?.("Daily paid-run limit used up. Try again tomorrow.");
+      } else {
+        showToast?.("Call-out is not available on this case yet.");
+      }
+      requestAnimationFrame(() => actionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      onIntentConsumed?.();
+    }
+  }, [intent, loading, callOutDisabled, draft, source, liveAgents, noRunsLeft, onIntentConsumed, showToast]);
+
   const whyNoActions = !record
     ? ""
     : record.status === "out_of_date"
@@ -764,7 +800,7 @@ export default function ApprovalView({ showToast }) {
         </div>
       )}
 
-      <section className="card approval-run" aria-labelledby="weekly-run-title">
+      <section className="card approval-run" aria-labelledby="weekly-run-title" ref={weeklyRunRef}>
         <h3 className="section-label" id="weekly-run-title" style={{ marginTop: 0 }}>
           Start weekly run
         </h3>
@@ -811,7 +847,7 @@ export default function ApprovalView({ showToast }) {
               source !== "api"
                 ? "Connect to the local API first"
                 : noPaidRunsLeft
-                  ? "No paid runs left today"
+                  ? "Daily paid-run limit used up. Try again tomorrow."
                   : !liveAgents
                     ? "Server needs NURSESYNC_LIVE=1"
                     : runInProgress
@@ -825,8 +861,16 @@ export default function ApprovalView({ showToast }) {
         {usage && (
           <p className="muted small" role="status">
             {usage.capped && usage.remaining != null && usage.max_per_day != null
-              ? `${usage.remaining} of ${usage.max_per_day} paid runs left today`
+              ? noPaidRunsLeft
+                ? `0 of ${usage.max_per_day} paid runs left today. The daily limit is used up — try again tomorrow, or raise NURSESYNC_MAX_PAID_OPS_PER_DAY and restart the API.`
+                : `${usage.remaining} of ${usage.max_per_day} paid runs left today`
               : "No daily paid-ops cap on this server."}
+          </p>
+        )}
+        {noPaidRunsLeft && source === "api" && (
+          <p className="approval-error" role="note">
+            Start weekly run is off until tomorrow. Weekly runs and call-outs share this daily limit so live agents
+            cannot spend without a cap.
           </p>
         )}
         {source === "api" && !liveAgents && (
@@ -1026,7 +1070,9 @@ export default function ApprovalView({ showToast }) {
             {soft.map((s, i) => (
               <li key={`s-${i}`}>
                 Soft — {s.rule || "fairness"}
-                {s.note ? `: ${s.note}` : ""}
+                {s.nurse_id ? ` (${who(s.nurse_id)})` : ""}
+                {s.date && s.shift ? ` — ${s.date} ${s.shift}` : ""}
+                {s.note ? `: ${withNames(s.note)}` : ""}
               </li>
             ))}
           </AttentionList>
@@ -1040,6 +1086,39 @@ export default function ApprovalView({ showToast }) {
             !soft.length && <p className="muted small">Nothing flagged above the schedule.</p>}
 
           <h3 className="section-label">Schedule</h3>
+          {draft && (skimNotes.length > 0 || skimSoft.length > 0 || suggestions.length > 0) && (
+            <div className="approval-banner soft approval-why-grid" role="region" aria-label="Why the schedule looks like this">
+              <strong>Why it looks like this</strong>
+              <ul className="approval-list">
+                {skimNotes.map((n, i) => (
+                  <li key={`note-${i}`}>{withNames(n)}</li>
+                ))}
+                {suggestions.map((s, i) => (
+                  <li key={`sug-${i}`}>
+                    Call-out suggestion: {who(s.nurse_id)} on {s.date} {s.shift}
+                    {s.reason ? ` — ${withNames(s.reason)}` : ""}
+                  </li>
+                ))}
+                {skimSoft.map((s, i) => (
+                  <li key={`soft-${i}`}>
+                    Soft — {s.rule || "fairness"}
+                    {s.nurse_id ? ` (${who(s.nurse_id)})` : ""}
+                    {s.note ? `: ${withNames(s.note)}` : ""}
+                  </li>
+                ))}
+              </ul>
+              {allSchedulerNotes.length > skimNotes.length && (
+                <p className="muted small">
+                  Showing {skimNotes.length} of {allSchedulerNotes.length} Scheduler notes. Full list is under How the agents decided.
+                </p>
+              )}
+            </div>
+          )}
+          {draft && skimNotes.length === 0 && suggestions.length === 0 && skimSoft.length === 0 && (
+            <p className="muted small approval-why-grid-empty">
+              No Scheduler notes on this draft. Check How the agents decided and the flags above if something looks odd.
+            </p>
+          )}
           {!draft ? (
             <p className="muted">No draft on this case.</p>
           ) : (
@@ -1090,7 +1169,7 @@ export default function ApprovalView({ showToast }) {
             </div>
           )}
 
-          <h3 className="section-label">Actions</h3>
+          <h3 className="section-label" ref={actionsRef}>Actions</h3>
           <div className="card form-card">
             {openIssues && canTryApprove(record) && (
               <label className="approval-ack">
@@ -1156,7 +1235,7 @@ export default function ApprovalView({ showToast }) {
                   source !== "api" || !liveAgents
                     ? "Needs the API with live agents (NURSESYNC_LIVE=1)"
                     : noRunsLeft
-                      ? "No paid runs left today"
+                      ? "Daily paid-run limit used up. Try again tomorrow."
                       : "Report a nurse call-out"
                 }
               >
@@ -1218,6 +1297,21 @@ export default function ApprovalView({ showToast }) {
               needed={dayDetail.needed}
               gap={gaps.find((g) => g.date === dayDetail.date && g.shift === dayDetail.shift)}
               onClose={() => setDayDetail(null)}
+              onNurseClick={(n) => {
+                setDayDetail(null);
+                setNurseMonth(n);
+              }}
+            />
+          )}
+
+          {nurseMonth && draft && (
+            <DraftNurseMonth
+              nurseId={nurseMonth.id}
+              name={nurseMonth.name || names[nurseMonth.id]}
+              assignments={draft.assignments || []}
+              availabilityRows={record?.availability_result?.rows || []}
+              weekStart={record?.week_start}
+              onClose={() => setNurseMonth(null)}
             />
           )}
 
