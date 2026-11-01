@@ -72,13 +72,15 @@ export default function DecisionPanel({ record, names }) {
           <li>
             <strong>Scheduler</strong>: built version {draft.version} with {plural(draft.assignments.length, "assignment")}{" "}
             across {plural(nurses, "nurse")}.
-            {(draft.notes || []).length > 0 && (
+            {(draft.notes || []).length > 0 ? (
               <>
                 <div className="muted small">Its reasoning, in its own words:</div>
                 <ul className="approval-list">
                   {draft.notes.map((n, i) => <li key={i}>{withNames(n)}</li>)}
                 </ul>
               </>
+            ) : (
+              <div className="muted small">No plain-language notes on this draft. Use the flags below if something looks off.</div>
             )}
           </li>
         ) : (

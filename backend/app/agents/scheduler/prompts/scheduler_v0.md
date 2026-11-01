@@ -108,7 +108,7 @@ Reply with **one JSON object and nothing else**. No text before or after, no mar
 - `assignments`: a list of `{ unit, date, shift, nurse_id, shift_start, shift_end }`.
 - `open_gaps`: a list of `{ unit, date, shift, nurses_needed, nurses_assigned, gap_reason }`, where `gap_reason` is `missing`, `no_available_nurse`, or `no_certified_nurse`.
 - `needs_manual_review`: a list of `{ item_type, id, note }`, where `item_type` is `demand_day` or `nurse`.
-- `notes`: a list of one-line reasons, one for each hard choice you made. These are for the manager.
+- `notes`: a list of one-line reasons for the manager, one for each hard choice you made. Each note must name the nurse id, the date and shift, and the plain reason (rest, coverage, leave, hours, and so on). Write so a busy manager can skim. No jargon. Skip filler. Good examples: `Put N009 on 2026-11-02 night so N003 gets rest after Monday night.` · `Left 2026-11-05 night short: only three nurses free under the weekly hours limit.` · `Did not schedule N012 on 2026-11-04 day — approved time off.` Bad examples: `Optimized fairness.` · `Fixed violations.` · `Looks good.`
 - `unfixable`: a list of `{ rule, nurse_id, date, shift, reason }`. `rule` is one of `one_shift_per_day`, `rest_time`, `weekly_hours`, `consecutive_shifts`, `certification`, `availability`, `coverage`, `fairness`.
 - `suggestions`: `[]` on a normal weekly run. On a call-out run, one row per replacement on an affected shift (`date`, `shift`, `nurse_id`, `reason`).
 
@@ -132,7 +132,8 @@ Example of a fix round (round 2), where one shift could not be fully covered:
     { "item_type": "nurse", "id": "N012", "note": "No availability data for this nurse." }
   ],
   "notes": [
-    "Moved N009 to the night shift on 2026-11-02 to fix a rest violation for N003."
+    "Put N009 on 2026-11-02 night so N003 gets rest after Monday night.",
+    "Left 2026-11-05 night short: only three nurses free under the weekly hours limit."
   ],
   "unfixable": [
     { "rule": "coverage", "nurse_id": "", "date": "2026-11-05", "shift": "night", "reason": "No other available nurse is rested and under the weekly limit for this shift." }
